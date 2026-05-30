@@ -3,13 +3,14 @@ import {
   fetchWeeklyPlan,
   fetchDailyActivity,
   fetchScore,
-  fetchScoreRange,
+  fetchActivityRange,
   fetchWarningsFor,
   fetchNotesForUser,
 } from '../lib/db';
 import { lastNDates, currentWeekId } from '../lib/utils';
 
 // Data umum dashboard FA/FWSS/BM untuk user yang login.
+// Catatan: skor sendiri TIDAK ditampilkan (privasi) — heatmap pakai data penyelesaian.
 export function useSalesDashboard(user) {
   const [state, setState] = useState({
     loading: true,
@@ -17,7 +18,7 @@ export function useSalesDashboard(user) {
     plan: null,
     activity: null,
     score: null,
-    heatmap: [],
+    completion: [],
     warnings: [],
     notes: [],
   });
@@ -25,15 +26,15 @@ export function useSalesDashboard(user) {
   const load = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: '' }));
     try {
-      const [plan, activity, score, heatmap, warnings, notes] = await Promise.all([
+      const [plan, activity, score, completion, warnings, notes] = await Promise.all([
         fetchWeeklyPlan(user.id, currentWeekId()),
         fetchDailyActivity(user.id),
         fetchScore(user.id),
-        fetchScoreRange(user.id, lastNDates(10)),
+        fetchActivityRange(user.id, lastNDates(10)),
         fetchWarningsFor(user.id),
         fetchNotesForUser(user.id),
       ]);
-      setState({ loading: false, error: '', plan, activity, score, heatmap, warnings, notes });
+      setState({ loading: false, error: '', plan, activity, score, completion, warnings, notes });
     } catch (e) {
       setState((s) => ({ ...s, loading: false, error: e.message || 'Gagal memuat data dashboard.' }));
     }

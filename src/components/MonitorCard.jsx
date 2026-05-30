@@ -17,7 +17,7 @@ export default function MonitorCard({ snapshot, onClick, compact = false }) {
       )}
     >
       <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-full bg-elevated grid place-items-center font-display font-bold text-white text-sm shrink-0">
+        <div className="h-10 w-10 rounded-full bg-hana-teal-50 grid place-items-center font-display font-bold text-hana-teal-700 text-sm shrink-0">
           {initials(user.name)}
         </div>
         <div className="flex-1 min-w-0">

@@ -65,7 +65,7 @@ export default function WarningModal({ open, onClose, users, preselect = [], onS
                   onClick={() => toggle(u.id)}
                   className={clsx(
                     'px-3 py-2 rounded-lg border text-left text-xs transition-colors',
-                    active ? 'border-hana-pink-500 bg-hana-pink-500/15 text-white' : 'border-hana-border text-text-secondary'
+                    active ? 'border-hana-pink-500 bg-hana-pink-50 text-ink' : 'border-hana-border text-text-secondary'
                   )}
                 >
                   <span className="font-semibold block truncate">{u.name}</span>

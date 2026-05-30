@@ -1,44 +1,42 @@
 import { useAuth } from '../../contexts/AuthContext';
 import { useSalesDashboard } from '../../hooks/useSalesDashboard';
 import Layout from '../../components/Layout';
-import Heatmap from '../../components/Heatmap';
+import CompletionHeatmap from '../../components/CompletionHeatmap';
 import WarningBanner from '../../components/WarningBanner';
 import { FullSpinner, ErrorBox } from '../../components/ui';
-import { ScoreCard, PlanDailyStatus, PrimaryActions, NotesCard, SectionTitle } from '../../components/dashboard';
-import { todayISO } from '../../lib/utils';
+import { TodayStatusCard, PlanDailyStatus, PrimaryActions, NotesCard, SectionTitle } from '../../components/dashboard';
+import { slotsForRole } from '../../constants/timeSlots';
 
 export default function FADashboard() {
   const { user } = useAuth();
-  const { loading, error, plan, activity, score, heatmap, warnings, notes, reload } = useSalesDashboard(user);
-
+  const { loading, error, plan, activity, score, completion, warnings, notes, reload } = useSalesDashboard(user);
+  const totalSlots = slotsForRole(user.role).length;
   const unread = warnings.filter((w) => !w.is_read).length;
 
   return (
-    <Layout unreadCount={unread}>
+    <Layout title="Dashboard FA" unreadCount={unread}>
       {loading ? (
         <FullSpinner label="Memuat dashboard..." />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {error && <ErrorBox>{error}</ErrorBox>}
-
           <WarningBanner warnings={warnings} onRead={reload} />
 
           <div>
             <p className="font-display text-2xl font-bold">Halo, {user.name.split(' ')[0]} 👋</p>
-            <p className="text-sm text-text-muted">Financial Advisor · {user.branch}</p>
+            <p className="text-sm text-text-secondary">Financial Advisor · {user.branch}</p>
           </div>
 
-          <ScoreCard score={score} date={todayISO()} />
-
-          <div className="card">
-            <Heatmap data={heatmap} />
+          <div className="grid lg:grid-cols-2 gap-4">
+            <TodayStatusCard activity={activity} score={score} totalSlots={totalSlots} />
+            <div className="card"><CompletionHeatmap data={completion} /></div>
           </div>
 
           <PlanDailyStatus plan={plan} activity={activity} score={score} />
 
           <NotesCard notes={notes} fromLabel="FWSS" />
 
-          <div className="pt-1">
+          <div>
             <SectionTitle>Aksi Cepat</SectionTitle>
             <PrimaryActions />
           </div>

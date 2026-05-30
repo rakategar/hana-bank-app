@@ -133,7 +133,7 @@ export default function BMSummary() {
 
           {!aiResult && (
             <div className="card text-center py-8">
-              <Bot size={36} className="text-hana-teal-500 mx-auto mb-3" />
+              <Bot size={36} className="text-hana-teal-700 mx-auto mb-3" />
               <p className="text-sm text-text-secondary mb-4">
                 Generate ringkasan kinerja {fwssList.length} FWSS beserta FA mereka.
               </p>
@@ -154,7 +154,7 @@ export default function BMSummary() {
 
               {aiResult.team_overall && (
                 <div className="card bg-hana-teal-500/5 border-hana-teal-500/30">
-                  <p className="text-sm font-semibold text-hana-teal-500 mb-1">Ringkasan Tim Cabang</p>
+                  <p className="text-sm font-semibold text-hana-teal-700 mb-1">Ringkasan Tim Cabang</p>
                   <p className="text-sm text-text-secondary leading-relaxed">{aiResult.team_overall}</p>
                 </div>
               )}

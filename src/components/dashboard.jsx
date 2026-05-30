@@ -1,39 +1,42 @@
 import { useNavigate } from 'react-router-dom';
-import { ClipboardList, PencilLine, CheckCircle2, AlertCircle, MessageSquareText } from 'lucide-react';
-import ScoreBadge from './ScoreBadge';
+import { ClipboardList, PencilLine, CheckCircle2, AlertCircle, MessageSquareText, ListChecks } from 'lucide-react';
 import { StatusPill } from './ui';
-import { levelInfo, formatDateID, clsx } from '../lib/utils';
+import { clsx } from '../lib/utils';
 
-// Kartu skor hari ini (angka besar + level)
-export function ScoreCard({ score, date }) {
-  const has = score && score.daily_average != null;
-  const info = has ? levelInfo(Math.round(score.daily_average)) : null;
+// Kartu status hari ini — TANPA membocorkan skor (skor hanya untuk atasan)
+export function TodayStatusCard({ activity, score, totalSlots }) {
+  const filled = activity?.activities?.filter((a) => a.actual && a.actual.trim()).length || 0;
+  let dailyStatus = 'belum';
+  if (score) dailyStatus = 'scored';
+  else if (activity) dailyStatus = 'draft';
+  const pct = totalSlots ? Math.round((filled / totalSlots) * 100) : 0;
+
   return (
-    <div className="card relative overflow-hidden">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs text-text-muted">{formatDateID(date)}</p>
-          <p className="text-sm text-text-secondary mt-0.5">Skor Hari Ini</p>
+    <div className="card">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <ListChecks size={18} className="text-hana-teal-600" />
+          <p className="font-semibold text-sm">Input Aktivitas Hari Ini</p>
         </div>
-        {has ? <ScoreBadge score={Math.round(score.daily_average)} size="lg" /> : <StatusPill status="belum" />}
+        <StatusPill status={dailyStatus} />
       </div>
-      <div className="flex items-end gap-3 mt-3">
-        <span
-          className="font-display font-extrabold leading-none text-6xl"
-          style={{ color: info ? info.color : '#52616B' }}
-        >
-          {has ? Number(score.daily_average).toFixed(1) : '—'}
-        </span>
-        <span className="text-text-muted text-sm mb-2">/ 4.0</span>
+      <div className="flex items-end gap-2">
+        <span className="font-display font-extrabold text-4xl leading-none text-ink">{filled}</span>
+        <span className="text-text-muted text-sm mb-1">/ {totalSlots} slot terisi</span>
       </div>
-      {has && score.summary && (
-        <p className="text-xs text-text-secondary mt-3 leading-relaxed">{score.summary}</p>
+      <div className="mt-3 h-2 rounded-full bg-elevated overflow-hidden">
+        <div className="h-full rounded-full bg-hana-teal-500 transition-all" style={{ width: `${pct}%` }} />
+      </div>
+      {dailyStatus === 'scored' && (
+        <p className="text-[11px] text-text-muted mt-2">
+          Sudah dinilai AI — hasil penilaian hanya dapat dilihat oleh atasan Anda.
+        </p>
       )}
     </div>
   );
 }
 
-// Status weekly plan + daily input
+// Status weekly plan + daily input (ringkas)
 export function PlanDailyStatus({ plan, activity, score }) {
   const planSubmitted = plan && plan.submitted_at;
   let dailyStatus = 'belum';
@@ -41,7 +44,7 @@ export function PlanDailyStatus({ plan, activity, score }) {
   else if (activity) dailyStatus = 'draft';
 
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-2 gap-4">
       <div className="card">
         <p className="text-xs text-text-muted mb-2">Rencana Minggu Ini</p>
         {planSubmitted ? (
@@ -55,18 +58,17 @@ export function PlanDailyStatus({ plan, activity, score }) {
         )}
       </div>
       <div className="card">
-        <p className="text-xs text-text-muted mb-2">Input Harian</p>
+        <p className="text-xs text-text-muted mb-2">Status Penilaian</p>
         <StatusPill status={dailyStatus} />
       </div>
     </div>
   );
 }
 
-// 2 tombol utama
 export function PrimaryActions() {
   const navigate = useNavigate();
   return (
-    <div className="grid gap-3">
+    <div className="grid sm:grid-cols-2 gap-4">
       <button onClick={() => navigate('/weekly-plan')} className="btn-teal w-full">
         <ClipboardList size={18} /> Buat Rencana Minggu Ini
       </button>
@@ -77,16 +79,15 @@ export function PrimaryActions() {
   );
 }
 
-// Notes read-only dari supervisor
 export function NotesCard({ notes = [], fromLabel = 'Supervisor' }) {
   if (!notes.length) return null;
   return (
     <div className="space-y-3">
       {notes.map((n) => (
-        <div key={n.id} className="card border-hana-teal-500/30 bg-hana-teal-500/5">
+        <div key={n.id} className="card border-hana-teal-500/30 bg-hana-teal-50">
           <div className="flex items-center gap-2 mb-2">
-            <MessageSquareText size={16} className="text-hana-teal-500" />
-            <p className="text-sm font-semibold text-hana-teal-500">Catatan dari {fromLabel}</p>
+            <MessageSquareText size={16} className="text-hana-teal-600" />
+            <p className="text-sm font-semibold text-hana-teal-700">Catatan dari {fromLabel}</p>
           </div>
           <p className="text-sm text-text-secondary whitespace-pre-wrap leading-relaxed">{n.supervisor_notes}</p>
           {Array.isArray(n.action_plans) && n.action_plans.length > 0 && (
@@ -112,7 +113,7 @@ export function NotesCard({ notes = [], fromLabel = 'Supervisor' }) {
 
 export function SectionTitle({ children, action }) {
   return (
-    <div className="flex items-center justify-between mb-2 mt-1">
+    <div className="flex items-center justify-between mb-3 mt-1">
       <h2 className="font-display text-lg font-bold">{children}</h2>
       {action}
     </div>

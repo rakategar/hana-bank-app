@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogIn } from 'lucide-react';
+import { LogIn, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchAllUsers } from '../lib/db';
 import { isSupabaseConfigured } from '../lib/supabase';
@@ -10,7 +10,6 @@ import logo from '/hana-bank-logo.png';
 
 const DEMO_PASSWORD = 'icu2026';
 
-// Fallback users (dipakai bila Supabase belum dikonfigurasi)
 const FALLBACK_USERS = [
   { id: 'rh_001', name: 'Budi Hartono', role: 'RH', branch: 'Regional Jakarta', supervisor_id: null },
   { id: 'bm_001', name: 'Drs. Agus Salim', role: 'BM', branch: 'Regional Jakarta', supervisor_id: 'rh_001' },
@@ -71,64 +70,85 @@ export default function Login() {
   const sorted = [...users].sort((a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9));
 
   return (
-    <div className="min-h-screen bg-charcoal">
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="flex flex-col items-center text-center mb-8">
-          <img src={logo} alt="Bank Hana" className="h-16 w-16 mb-3" />
-          <h1 className="font-display text-3xl font-extrabold tracking-tight">ICU CLASS</h1>
-          <p className="text-hana-teal-500 font-display font-bold text-sm tracking-wide">BANK HANA</p>
-          <p className="text-xs text-text-muted mt-1">Intensive Control &amp; Upgrading — Field Execution System</p>
+    <div className="min-h-screen lg:grid lg:grid-cols-2">
+      {/* Brand panel */}
+      <div className="relative hidden lg:flex flex-col justify-between p-12 bg-sidebar text-white overflow-hidden">
+        <div className="absolute -top-24 -right-24 h-80 w-80 rounded-full bg-hana-teal-500/20 blur-3xl" />
+        <div className="absolute bottom-0 -left-20 h-72 w-72 rounded-full bg-hana-pink-500/10 blur-3xl" />
+        <div className="relative flex items-center gap-3">
+          <img src={logo} alt="Bank Hana" className="h-11 w-11 bg-white rounded-xl p-1.5" />
+          <div>
+            <p className="font-display text-2xl font-extrabold leading-none">ICU Class</p>
+            <p className="text-xs text-white/60">Bank Hana</p>
+          </div>
         </div>
+        <div className="relative">
+          <h1 className="font-display text-4xl font-extrabold leading-tight">
+            Intensive Control<br />&amp; Upgrading
+          </h1>
+          <p className="text-white/70 mt-3 max-w-md">
+            Field Execution System untuk tracking aktivitas harian, scoring AI, dan
+            monitoring performa tim sales lapangan secara berjenjang.
+          </p>
+          <div className="flex gap-2 mt-6 flex-wrap">
+            {['Financial Advisor', 'FWSS', 'Branch Manager', 'Regional Head'].map((r) => (
+              <span key={r} className="px-3 py-1 rounded-full bg-white/10 text-xs font-medium">{r}</span>
+            ))}
+          </div>
+        </div>
+        <p className="relative text-[11px] text-white/40">v4.0 · Bank Hana © 2026</p>
+      </div>
 
-        {error && <div className="mb-4"><ErrorBox>{error}</ErrorBox></div>}
+      {/* Login panel */}
+      <div className="flex flex-col bg-charcoal min-h-screen lg:min-h-0">
+        <div className="flex-1 w-full max-w-xl mx-auto px-5 py-10 flex flex-col justify-center">
+          <div className="lg:hidden flex flex-col items-center text-center mb-6">
+            <img src={logo} alt="Bank Hana" className="h-14 w-14 mb-2" />
+            <h1 className="font-display text-2xl font-extrabold">ICU CLASS</h1>
+            <p className="text-hana-teal-600 font-display font-bold text-sm">BANK HANA</p>
+          </div>
 
-        {loading ? (
-          <FullSpinner label="Memuat daftar user..." />
-        ) : (
-          <>
-            <p className="text-sm text-text-secondary mb-3 text-center">
-              Pilih user untuk masuk (mode demo — klik langsung login)
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {sorted.map((u) => (
-                <UserCard key={u.id} user={u} onClick={doLogin} />
-              ))}
-            </div>
+          <div className="mb-5">
+            <h2 className="font-display text-2xl font-bold">Masuk ke Akun Anda</h2>
+            <p className="text-sm text-text-secondary mt-1">Mode demo — klik salah satu kartu untuk langsung masuk.</p>
+          </div>
 
-            <details className="mt-8 group">
-              <summary className="cursor-pointer text-sm text-text-secondary hover:text-white text-center list-none">
-                <span className="underline underline-offset-4">Login manual (username + password)</span>
-              </summary>
-              <form onSubmit={handleManual} className="card mt-3 max-w-sm mx-auto space-y-3">
-                <div>
-                  <label className="label">Username / ID</label>
-                  <input
-                    className="w-full px-3 py-2 text-sm"
-                    placeholder="fa_001"
-                    value={manual.username}
-                    onChange={(e) => setManual((m) => ({ ...m, username: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label">Password</label>
-                  <input
-                    type="password"
-                    className="w-full px-3 py-2 text-sm"
-                    placeholder="icu2026"
-                    value={manual.password}
-                    onChange={(e) => setManual((m) => ({ ...m, password: e.target.value }))}
-                  />
-                </div>
-                {manualErr && <p className="text-xs text-score-1">{manualErr}</p>}
-                <button type="submit" className="btn-teal w-full">
-                  <LogIn size={16} /> Masuk
-                </button>
-              </form>
-            </details>
-          </>
-        )}
+          {error && <div className="mb-4"><ErrorBox>{error}</ErrorBox></div>}
 
-        <p className="text-center text-[11px] text-text-muted mt-10">ICU Class v4.0 · Bank Hana © 2026</p>
+          {loading ? (
+            <FullSpinner label="Memuat daftar user..." />
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                {sorted.map((u) => (
+                  <UserCard key={u.id} user={u} onClick={doLogin} />
+                ))}
+              </div>
+
+              <details className="mt-6 group">
+                <summary className="cursor-pointer text-sm text-text-secondary hover:text-ink list-none">
+                  <span className="underline underline-offset-4">Login manual (username + password)</span>
+                </summary>
+                <form onSubmit={handleManual} className="card mt-3 space-y-3">
+                  <div>
+                    <label className="label">Username / ID</label>
+                    <input className="w-full px-3 py-2 text-sm" placeholder="fa_001" value={manual.username} onChange={(e) => setManual((m) => ({ ...m, username: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="label">Password</label>
+                    <input type="password" className="w-full px-3 py-2 text-sm" placeholder="icu2026" value={manual.password} onChange={(e) => setManual((m) => ({ ...m, password: e.target.value }))} />
+                  </div>
+                  {manualErr && <p className="text-xs text-score-1">{manualErr}</p>}
+                  <button type="submit" className="btn-teal w-full"><LogIn size={16} /> Masuk</button>
+                </form>
+              </details>
+
+              <p className="flex items-center gap-1.5 text-[11px] text-text-muted mt-6 justify-center">
+                <ShieldCheck size={13} /> Sesi tersimpan aman di perangkat Anda
+              </p>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

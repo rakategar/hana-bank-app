@@ -88,15 +88,15 @@ export function ActionPlanEditor({ templates, value, onChange }) {
         return (
           <label key={label} className={clsx('flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer text-sm', checked ? 'border-hana-teal-500 bg-hana-teal-500/10' : 'border-hana-border')}>
             <input type="checkbox" checked={checked} onChange={() => toggleTemplate(label)} className="accent-hana-teal-500 h-4 w-4" />
-            <span className={checked ? 'text-white' : 'text-text-secondary'}>{label}</span>
+            <span className={checked ? 'text-ink font-medium' : 'text-text-secondary'}>{label}</span>
           </label>
         );
       })}
 
       {/* Custom actions yang sudah ditambahkan */}
       {value.filter((a) => a.type === 'custom').map((a) => (
-        <div key={a.id} className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-hana-pink-500/40 bg-hana-pink-500/10 text-sm">
-          <span className="flex-1 text-white">{a.label}</span>
+        <div key={a.id} className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-hana-pink-500/40 bg-hana-pink-50 text-sm">
+          <span className="flex-1 text-ink">{a.label}</span>
           <button onClick={() => removeAction(a.id)} className="text-text-muted hover:text-score-1"><X size={14} /></button>
         </div>
       ))}

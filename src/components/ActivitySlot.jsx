@@ -41,12 +41,12 @@ export default function ActivitySlot({ slot, userId, date, onChange }) {
       style={statusColor ? { borderLeftColor: statusColor, borderLeftWidth: 3 } : undefined}
     >
       <div className="flex items-baseline gap-2 mb-3">
-        <span className="font-display font-bold text-hana-teal-500 text-base">{slot.time}</span>
-        <span className="text-sm font-semibold text-white leading-tight">{slot.label}</span>
+        <span className="font-display font-bold text-hana-teal-600 text-base">{slot.time}</span>
+        <span className="text-sm font-semibold text-ink leading-tight">{slot.label}</span>
       </div>
 
       {slot.planned && (
-        <div className="mb-3 text-xs text-text-muted bg-charcoal/50 rounded-lg px-3 py-2 border border-hana-border">
+        <div className="mb-3 text-xs text-text-secondary bg-elevated rounded-lg px-3 py-2 border border-hana-border">
           <span className="font-medium text-text-secondary">Rencana: </span>
           {slot.planned}
         </div>

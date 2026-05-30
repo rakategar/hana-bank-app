@@ -10,14 +10,14 @@ import WarningModal from './WarningModal';
 import { FullSpinner, ErrorBox, StatusPill } from '../../components/ui';
 import { SectionTitle } from '../../components/dashboard';
 import { fetchAllUsers, fetchUserDaySnapshot, fetchScoreRange, fetchWarningsFrom } from '../../lib/db';
-import { lastNDates, formatDateID, clsx } from '../../lib/utils';
+import { lastNDates, formatDateID, levelInfo, clsx } from '../../lib/utils';
 
 const ROLE_ORDER = { BM: 0, FWSS: 1, FA: 2 };
 
 function Trend({ value }) {
-  if (value > 0) return <span className="inline-flex items-center text-score-4 text-xs"><ArrowUp size={14} /></span>;
-  if (value < 0) return <span className="inline-flex items-center text-score-1 text-xs"><ArrowDown size={14} /></span>;
-  return <span className="inline-flex items-center text-text-muted text-xs"><Minus size={14} /></span>;
+  if (value > 0) return <span className="inline-flex items-center text-score-4"><ArrowUp size={16} /></span>;
+  if (value < 0) return <span className="inline-flex items-center text-score-1"><ArrowDown size={16} /></span>;
+  return <span className="inline-flex items-center text-text-muted"><Minus size={16} /></span>;
 }
 
 export default function RHDashboard() {
@@ -30,7 +30,7 @@ export default function RHDashboard() {
   const [warnings, setWarnings] = useState([]);
   const [showWarning, setShowWarning] = useState(false);
   const [detailUser, setDetailUser] = useState(null);
-  const [tab, setTab] = useState('monitor'); // monitor | log
+  const [tab, setTab] = useState('monitor');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -80,36 +80,36 @@ export default function RHDashboard() {
   const candidateUsers = rows.map((r) => r.user);
 
   return (
-    <Layout accent="rh">
+    <Layout title="Dashboard Regional Head">
       {loading ? (
         <FullSpinner label="Memuat overview regional..." />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {error && <ErrorBox>{error}</ErrorBox>}
 
-          <div>
-            <p className="font-display text-2xl font-bold">Regional Head</p>
-            <p className="text-sm text-text-muted">{user.name} · {user.branch}</p>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="font-display text-2xl font-bold">Overview Regional</p>
+              <p className="text-sm text-text-secondary">{user.name} · {user.branch}</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => navigate('/summary/rh')} className="btn-teal">
+                <Bot size={18} /> Generate Summary
+              </button>
+              <button onClick={() => setShowWarning(true)} className="btn-pink">
+                <AlertTriangle size={18} /> Kirim Peringatan
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => navigate('/summary/rh')} className="btn-teal">
-              <Bot size={18} /> Generate Summary
-            </button>
-            <button onClick={() => setShowWarning(true)} className="btn-pink">
-              <AlertTriangle size={18} /> Kirim Peringatan
-            </button>
-          </div>
-
-          {/* Tabs */}
           <div className="flex gap-2 border-b border-hana-border">
             {[['monitor', 'Monitoring'], ['log', 'Log Surat Peringatan']].map(([k, label]) => (
               <button
                 key={k}
                 onClick={() => setTab(k)}
                 className={clsx(
-                  'px-3 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors',
-                  tab === k ? 'border-hana-teal-500 text-hana-teal-500' : 'border-transparent text-text-muted hover:text-white'
+                  'px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors',
+                  tab === k ? 'border-hana-teal-500 text-hana-teal-700' : 'border-transparent text-text-muted hover:text-ink'
                 )}
               >
                 {label}
@@ -119,31 +119,34 @@ export default function RHDashboard() {
 
           {tab === 'monitor' ? (
             <>
-              {/* Tabel semua user */}
               <div className="card !p-0 overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-[11px] text-text-muted border-b border-hana-border">
-                      <th className="px-3 py-2 font-medium">Nama</th>
-                      <th className="px-2 py-2 font-medium">Skor</th>
-                      <th className="px-2 py-2 font-medium">Trend</th>
-                      <th className="px-2 py-2 font-medium hidden sm:table-cell">Status</th>
+                    <tr className="text-left text-[11px] uppercase tracking-wide text-text-muted border-b border-hana-border bg-elevated">
+                      <th className="px-4 py-3 font-semibold">Nama</th>
+                      <th className="px-3 py-3 font-semibold">Cabang</th>
+                      <th className="px-3 py-3 font-semibold">Skor</th>
+                      <th className="px-3 py-3 font-semibold">Trend</th>
+                      <th className="px-3 py-3 font-semibold">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((r) => {
                       const avg = r.score?.daily_average;
+                      const lvl = avg != null ? levelInfo(Math.round(avg)) : null;
                       return (
                         <tr
                           key={r.user.id}
                           onClick={() => setDetailUser(r.user)}
-                          className="border-b border-hana-border/50 last:border-0 cursor-pointer hover:bg-elevated"
+                          className="border-b border-hana-border/70 last:border-0 cursor-pointer hover:bg-elevated transition-colors"
+                          style={lvl ? { boxShadow: `inset 3px 0 0 ${lvl.color}` } : undefined}
                         >
-                          <td className="px-3 py-2.5">
+                          <td className="px-4 py-3">
                             <p className="font-semibold leading-tight">{r.user.name}</p>
-                            <p className="text-[10px] text-text-muted">{r.user.role} · {r.user.branch}</p>
+                            <p className="text-[10px] text-text-muted">{r.user.role}</p>
                           </td>
-                          <td className="px-2 py-2.5">
+                          <td className="px-3 py-3 text-text-secondary text-xs">{r.user.branch}</td>
+                          <td className="px-3 py-3">
                             {avg != null ? (
                               <div className="flex items-center gap-1.5">
                                 <span className="font-display font-bold">{Number(avg).toFixed(1)}</span>
@@ -153,8 +156,8 @@ export default function RHDashboard() {
                               <ScoreBadge />
                             )}
                           </td>
-                          <td className="px-2 py-2.5"><Trend value={r.trend} /></td>
-                          <td className="px-2 py-2.5 hidden sm:table-cell"><StatusPill status={r.inputStatus} /></td>
+                          <td className="px-3 py-3"><Trend value={r.trend} /></td>
+                          <td className="px-3 py-3"><StatusPill status={r.inputStatus} /></td>
                         </tr>
                       );
                     })}
@@ -162,16 +165,15 @@ export default function RHDashboard() {
                 </table>
               </div>
 
-              {/* Team heatmap */}
               <div className="card">
                 <SectionTitle>Heatmap Tim — 10 Hari ICU</SectionTitle>
                 <TeamHeatmap rows={heatRows} />
               </div>
             </>
           ) : (
-            <div className="space-y-3">
+            <div className="grid lg:grid-cols-2 gap-4">
               {warnings.length === 0 ? (
-                <div className="card text-center py-8">
+                <div className="card text-center py-8 lg:col-span-2">
                   <ScrollText size={32} className="text-text-muted mx-auto mb-2" />
                   <p className="text-sm text-text-muted">Belum ada surat peringatan yang dikirim.</p>
                 </div>
@@ -182,7 +184,7 @@ export default function RHDashboard() {
                     <div key={w.id} className="card">
                       <div className="flex items-center justify-between gap-2">
                         <p className="font-semibold text-sm text-score-1">{w.title}</p>
-                        <span className={clsx('text-[10px] px-2 py-0.5 rounded-full', w.is_read ? 'bg-score-4/15 text-score-4' : 'bg-text-muted/15 text-text-secondary')}>
+                        <span className={clsx('text-[10px] px-2 py-0.5 rounded-full', w.is_read ? 'bg-score-4/15 text-score-4' : 'bg-elevated text-text-secondary')}>
                           {w.is_read ? 'Dibaca' : 'Belum dibaca'}
                         </span>
                       </div>
@@ -199,12 +201,7 @@ export default function RHDashboard() {
         </div>
       )}
 
-      <WarningModal
-        open={showWarning}
-        onClose={() => setShowWarning(false)}
-        users={candidateUsers}
-        onSent={load}
-      />
+      <WarningModal open={showWarning} onClose={() => setShowWarning(false)} users={candidateUsers} onSent={load} />
       <ActivityDetailModal user={detailUser} open={Boolean(detailUser)} onClose={() => setDetailUser(null)} />
     </Layout>
   );

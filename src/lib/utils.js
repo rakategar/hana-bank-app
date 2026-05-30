@@ -76,6 +76,22 @@ export function levelFromAverage(avg) {
   return SCORE_LEVELS[Math.max(1, Math.min(4, Math.round(avg)))];
 }
 
+// ── Score visibility ──────────────────────────────────────
+// Aturan: seseorang TIDAK boleh melihat skor dirinya sendiri.
+// Atasan boleh melihat skor bawahannya (viewer != target).
+export function canViewScoreOf(viewerId, targetId) {
+  return Boolean(viewerId && targetId && viewerId !== targetId);
+}
+
+// Warna untuk completion heatmap (intensitas teal sesuai % terisi)
+export function completionColor(ratio) {
+  if (ratio == null || ratio <= 0) return null;
+  if (ratio < 0.4) return '#CDF0E9';
+  if (ratio < 0.7) return '#7FD9C6';
+  if (ratio < 1) return '#2FBFA3';
+  return '#04B292';
+}
+
 // ── Misc ──────────────────────────────────────────────────
 
 export function initials(name = '') {

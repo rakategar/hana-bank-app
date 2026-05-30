@@ -54,7 +54,7 @@ export default function ActivityDetailModal({ user, open, onClose }) {
               <div key={a.time} className="border-b border-hana-border pb-3 last:border-0">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold">
-                    <span className="text-hana-teal-500 font-display">{a.time}</span> {a.label}
+                    <span className="text-hana-teal-700 font-display">{a.time}</span> {a.label}
                   </p>
                   {s && <ScoreBadge score={s.score} showScore />}
                 </div>

@@ -58,6 +58,15 @@ export async function upsertWeeklyPlan({ userId, role, weekId = currentWeekId(),
   return data;
 }
 
+export async function deleteWeeklyPlan(userId, weekId = currentWeekId()) {
+  const { error } = await supabase
+    .from('weekly_plans')
+    .delete()
+    .eq('user_id', userId)
+    .eq('week_id', weekId);
+  if (error) throw error;
+}
+
 // ── DAILY ACTIVITIES ──────────────────────────────────────
 
 export async function fetchDailyActivity(userId, date = todayISO()) {
@@ -136,6 +145,22 @@ export async function fetchScoreRange(userId, dates) {
     .in('date', dates);
   if (error) throw error;
   return data || [];
+}
+
+// Range aktivitas (untuk completion heatmap — tanpa membocorkan skor)
+export async function fetchActivityRange(userId, dates) {
+  const { data, error } = await supabase
+    .from('daily_activities')
+    .select('date, activities')
+    .eq('user_id', userId)
+    .in('date', dates);
+  if (error) throw error;
+  return (data || []).map((row) => {
+    const acts = Array.isArray(row.activities) ? row.activities : [];
+    const total = acts.length || 0;
+    const filled = acts.filter((a) => a.actual && a.actual.trim()).length;
+    return { date: row.date, filled, total, ratio: total ? filled / total : 0 };
+  });
 }
 
 export async function upsertScore({ userId, role, date = todayISO(), dailyActivityId, result, isDummy = false }) {

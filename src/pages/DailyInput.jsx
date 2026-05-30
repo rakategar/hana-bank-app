@@ -193,7 +193,7 @@ export default function DailyInput() {
         status: 'scored',
         isDummy: false,
       });
-      navigate('/score-result', { state: { result, role: user.role } });
+      navigate('/score-result', { state: { submitted: true } });
     } catch (e) {
       setError(e.message || 'Gagal melakukan penilaian AI.');
     } finally {
@@ -228,7 +228,7 @@ export default function DailyInput() {
 
           {/* Utility buttons */}
           <div className="grid grid-cols-2 gap-3">
-            <button onClick={handleAddDummy} disabled={Boolean(busy)} className="btn-ghost border-hana-teal-500/40 text-hana-teal-500">
+            <button onClick={handleAddDummy} disabled={Boolean(busy)} className="btn-ghost border-hana-teal-500/40 text-hana-teal-700">
               {busy === 'dummy' ? <Spinner size={16} /> : <Wand2 size={16} />} Tambah Dummy
             </button>
             <button

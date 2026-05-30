@@ -76,7 +76,7 @@ export default function RHSummary() {
   }
 
   return (
-    <Layout title="Summary Keseluruhan" back="/dashboard/rh" accent="rh">
+    <Layout title="Summary Keseluruhan" back="/dashboard/rh">
       {loading ? (
         <FullSpinner label="Memuat data..." />
       ) : (
@@ -85,7 +85,7 @@ export default function RHSummary() {
 
           {!result && (
             <div className="card text-center py-8">
-              <Bot size={36} className="text-hana-teal-500 mx-auto mb-3" />
+              <Bot size={36} className="text-hana-teal-700 mx-auto mb-3" />
               <p className="text-sm text-text-secondary mb-4">
                 Generate executive summary kinerja seluruh tim regional hari ini.
               </p>
@@ -105,9 +105,9 @@ export default function RHSummary() {
               </div>
 
               {/* Executive summary */}
-              <div className="card border-hana-teal-700 bg-hana-teal-700/10">
+              <div className="card border-hana-teal-700/40 bg-hana-teal-50">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-semibold text-hana-teal-100">Executive Summary</p>
+                  <p className="text-sm font-semibold text-hana-teal-700">Executive Summary</p>
                   <PerformancePill status={result.team_overall_status} />
                 </div>
                 <p className="text-sm text-text-secondary leading-relaxed">{result.executive_summary}</p>
@@ -116,7 +116,7 @@ export default function RHSummary() {
               {/* Ranking */}
               {result.performance_ranking?.length > 0 && (
                 <div className="card">
-                  <p className="flex items-center gap-1.5 text-sm font-semibold mb-3"><Trophy size={16} className="text-hana-teal-500" /> Ranking Performa</p>
+                  <p className="flex items-center gap-1.5 text-sm font-semibold mb-3"><Trophy size={16} className="text-hana-teal-700" /> Ranking Performa</p>
                   <div className="space-y-2">
                     {result.performance_ranking.map((r) => (
                       <div key={r.user_id || r.rank} className="flex items-center gap-3">
@@ -153,10 +153,10 @@ export default function RHSummary() {
               {/* Strategic recommendations */}
               {result.strategic_recommendations?.length > 0 && (
                 <div className="card">
-                  <p className="text-sm font-semibold mb-2 text-hana-teal-500">Rekomendasi Strategis</p>
+                  <p className="text-sm font-semibold mb-2 text-hana-teal-700">Rekomendasi Strategis</p>
                   <ul className="space-y-1.5">
                     {result.strategic_recommendations.map((s, i) => (
-                      <li key={i} className="text-xs text-text-secondary flex gap-2"><span className="text-hana-teal-500">•</span>{s}</li>
+                      <li key={i} className="text-xs text-text-secondary flex gap-2"><span className="text-hana-teal-700">•</span>{s}</li>
                     ))}
                   </ul>
                 </div>

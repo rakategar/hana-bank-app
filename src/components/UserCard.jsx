@@ -1,36 +1,36 @@
 import { initials, clsx } from '../lib/utils';
 
 const ROLE_STYLES = {
-  RH: 'bg-hana-teal-700/30 text-hana-teal-100 border-hana-teal-700',
-  BM: 'bg-hana-pink-500/20 text-hana-pink-500 border-hana-pink-500/40',
-  FWSS: 'bg-hana-teal-500/20 text-hana-teal-500 border-hana-teal-500/40',
+  RH: 'bg-hana-teal-700/15 text-hana-teal-700 border-hana-teal-700/30',
+  BM: 'bg-hana-pink-50 text-hana-pink-600 border-hana-pink-500/30',
+  FWSS: 'bg-hana-teal-50 text-hana-teal-700 border-hana-teal-500/30',
   FA: 'bg-elevated text-text-secondary border-hana-border',
 };
 
 const AVATAR_BG = {
-  RH: 'bg-hana-teal-700',
-  BM: 'bg-hana-pink-500',
-  FWSS: 'bg-hana-teal-500',
-  FA: 'bg-elevated',
+  RH: 'bg-hana-teal-700 text-white',
+  BM: 'bg-hana-pink-500 text-white',
+  FWSS: 'bg-hana-teal-500 text-white',
+  FA: 'bg-hana-teal-50 text-hana-teal-700',
 };
 
 export default function UserCard({ user, onClick }) {
   return (
     <button
       onClick={() => onClick(user)}
-      className="card text-left hover:border-hana-teal-500 hover:bg-elevated transition-colors group focus:outline-none focus:ring-2 focus:ring-hana-teal-500"
+      className="card text-left hover:border-hana-teal-500 hover:shadow-elevated transition-all group focus:outline-none focus:shadow-focus"
     >
       <div className="flex items-center gap-3">
         <div
           className={clsx(
-            'h-12 w-12 rounded-full grid place-items-center font-display font-bold text-white shrink-0',
-            AVATAR_BG[user.role] || 'bg-elevated'
+            'h-12 w-12 rounded-full grid place-items-center font-display font-bold shrink-0',
+            AVATAR_BG[user.role] || 'bg-elevated text-ink'
           )}
         >
           {initials(user.name)}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-sm text-white truncate group-hover:text-hana-teal-500">{user.name}</p>
+          <p className="font-semibold text-sm text-ink truncate group-hover:text-hana-teal-700">{user.name}</p>
           <p className="text-xs text-text-muted truncate">{user.branch}</p>
         </div>
       </div>

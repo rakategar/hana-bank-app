@@ -19,12 +19,16 @@ export default {
             600: '#B81E4D',
           },
         },
-        charcoal: '#1F2933',
-        card: '#263544',
-        elevated: '#2E4057',
-        'hana-border': '#374B5C',
-        'text-secondary': '#A0B4C8',
-        'text-muted': '#52616B',
+        // Neutral tokens — LIGHT THEME (nama dipertahankan agar konsisten)
+        charcoal: '#F4F6FA', // page canvas (light)
+        card: '#FFFFFF', // card surface
+        elevated: '#F1F5F9', // input / subtle surface
+        'hana-border': '#E2E8F0', // borders & dividers
+        ink: '#1F2933', // primary text (dark)
+        'text-secondary': '#475569', // secondary text
+        'text-muted': '#94A3B8', // muted text
+        sidebar: '#0F2A24', // dark teal sidebar (desktop)
+        'sidebar-soft': '#15392F',
         score: {
           1: '#EF4444',
           2: '#F97316',
@@ -35,6 +39,11 @@ export default {
       fontFamily: {
         display: ['"Barlow Condensed"', 'sans-serif'],
         sans: ['"DM Sans"', 'sans-serif'],
+      },
+      boxShadow: {
+        card: '0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06)',
+        elevated: '0 8px 24px rgba(16, 24, 40, 0.10)',
+        focus: '0 0 0 3px rgba(4, 178, 146, 0.18)',
       },
       keyframes: {
         'fade-in-up': {

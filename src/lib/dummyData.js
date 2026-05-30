@@ -131,3 +131,26 @@ export function generateDummyScores(role, activities) {
       'Fokus besok: tutup gap pada slot partial/not done dan jaga konsistensi closing.',
   };
 }
+
+// ── Weekly plan dummy ─────────────────────────────────────
+
+const PROSPECTS = ['Pak Budi Sunter', 'Bu Ani Kelapa Gading', 'Pak Joko Cempaka', 'Bu Tini Sunter', 'Pak Hasan Menteng', 'Bu Rina PIK', 'Pak Dedi Pluit', 'Bu Sari Tebet', 'Pak Anwar Kemang', 'Bu Lia Senayan', 'Pak Rudi Cikini', 'Bu Wati Kuningan'];
+const LOCATIONS = ['Cabang Jakarta Pusat', 'Kelapa Gading', 'Sunter', 'Kemang', 'PIK', 'Menteng', 'Tebet', 'Pluit', 'Senayan', 'Kuningan', 'Cikini', 'Cempaka Putih'];
+
+const PLAN_OBJECTIVES = {
+  FA: 'Targetkan 1 closing & 2 appointment baru, fokus produk tabungan/deposito.',
+  FWSS: 'Kawal 2 FA agar capai target, dorong recovery pipeline & assisted closing.',
+  BM: 'Pastikan tim cabang on track, dukung case high-potential & koordinasi peluang.',
+};
+
+// Bangun slots dummy untuk weekly_plans.slots (JSONB)
+export function generateDummyWeeklyPlan(role) {
+  const slots = slotsForRole(role);
+  return slots.map((s, i) => ({
+    time: s.time,
+    label: s.label,
+    prospect: PROSPECTS[i % PROSPECTS.length],
+    location: LOCATIONS[i % LOCATIONS.length],
+    objective: PLAN_OBJECTIVES[role] || PLAN_OBJECTIVES.FA,
+  }));
+}

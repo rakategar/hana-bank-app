@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   html,
@@ -14,7 +14,7 @@
   }
 
   body {
-    @apply bg-charcoal text-white font-sans antialiased;
+    @apply bg-charcoal text-ink font-sans antialiased;
     margin: 0;
     -webkit-tap-highlight-color: transparent;
   }
@@ -23,54 +23,68 @@
   h2,
   h3,
   h4 {
-    @apply font-display;
+    @apply font-display text-ink;
   }
 
-  /* Scrollbar */
+  /* Scrollbar (light) */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
   }
   ::-webkit-scrollbar-track {
-    background: #1f2933;
+    background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #374b5c;
+    background: #cbd5e1;
     border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+    background-clip: content-box;
   }
 
   textarea,
   input,
   select {
-    @apply bg-elevated border border-hana-border rounded-lg text-white placeholder:text-text-muted;
-    @apply focus:outline-none focus:ring-2 focus:ring-hana-teal-500/60 focus:border-hana-teal-500;
+    @apply bg-white border border-hana-border rounded-lg text-ink placeholder:text-text-muted;
+    @apply focus:outline-none focus:border-hana-teal-500 focus:shadow-focus;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 font-semibold text-sm;
-    @apply transition-colors disabled:opacity-50 disabled:cursor-not-allowed select-none;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 font-semibold text-sm;
+    @apply transition-all disabled:opacity-50 disabled:cursor-not-allowed select-none;
   }
   .btn-teal {
-    @apply btn bg-hana-teal-500 text-white hover:bg-hana-teal-600;
+    @apply btn bg-hana-teal-500 text-white shadow-sm hover:bg-hana-teal-600;
   }
   .btn-pink {
-    @apply btn bg-hana-pink-500 text-white hover:bg-hana-pink-600;
+    @apply btn bg-hana-pink-500 text-white shadow-sm hover:bg-hana-pink-600;
   }
   .btn-ghost {
-    @apply btn bg-elevated text-text-secondary hover:text-white hover:bg-hana-border border border-hana-border;
+    @apply btn bg-white text-text-secondary border border-hana-border hover:bg-elevated hover:text-ink;
   }
   .card {
-    @apply bg-card border border-hana-border rounded-xl p-4;
+    @apply bg-white border border-hana-border rounded-xl p-4 shadow-card;
   }
   .label {
     @apply block text-xs font-medium text-text-secondary mb-1.5;
   }
   .skeleton {
-    background: linear-gradient(90deg, #263544 25%, #2e4057 50%, #263544 75%);
+    background: linear-gradient(90deg, #eef2f7 25%, #e2e8f0 50%, #eef2f7 75%);
     background-size: 200% 100%;
     @apply animate-shimmer rounded-lg;
+  }
+  /* Sidebar nav item (desktop) */
+  .nav-item {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors;
+    @apply text-white/70 hover:text-white hover:bg-white/10;
+  }
+  .nav-item-active {
+    @apply bg-white/15 text-white;
   }
 }
