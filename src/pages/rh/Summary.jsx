@@ -143,7 +143,7 @@ export default function RHSummary() {
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase shrink-0" style={{ backgroundColor: `${URGENCY_COLOR[r.urgency] || '#52616B'}26`, color: URGENCY_COLOR[r.urgency] || '#52616B' }}>
                           {r.urgency}
                         </span>
-                        <p className="text-text-secondary"><b className="text-white">{r.name}:</b> {r.issue}</p>
+                        <p className="text-text-secondary"><b className="text-ink">{r.name}:</b> {r.issue}</p>
                       </div>
                     ))}
                   </div>
