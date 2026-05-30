@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-charcoal text-white font-sans antialiased;
+    margin: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #1f2933;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #374b5c;
+    border-radius: 8px;
+  }
+
+  textarea,
+  input,
+  select {
+    @apply bg-elevated border border-hana-border rounded-lg text-white placeholder:text-text-muted;
+    @apply focus:outline-none focus:ring-2 focus:ring-hana-teal-500/60 focus:border-hana-teal-500;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 font-semibold text-sm;
+    @apply transition-colors disabled:opacity-50 disabled:cursor-not-allowed select-none;
+  }
+  .btn-teal {
+    @apply btn bg-hana-teal-500 text-white hover:bg-hana-teal-600;
+  }
+  .btn-pink {
+    @apply btn bg-hana-pink-500 text-white hover:bg-hana-pink-600;
+  }
+  .btn-ghost {
+    @apply btn bg-elevated text-text-secondary hover:text-white hover:bg-hana-border border border-hana-border;
+  }
+  .card {
+    @apply bg-card border border-hana-border rounded-xl p-4;
+  }
+  .label {
+    @apply block text-xs font-medium text-text-secondary mb-1.5;
+  }
+  .skeleton {
+    background: linear-gradient(90deg, #263544 25%, #2e4057 50%, #263544 75%);
+    background-size: 200% 100%;
+    @apply animate-shimmer rounded-lg;
+  }
+}

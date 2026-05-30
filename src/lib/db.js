@@ -1,0 +1,272 @@
+import { supabase } from './supabase';
+import { todayISO, currentWeekId } from './utils';
+import { slotsForRole } from '../constants/timeSlots';
+
+// ── USERS ─────────────────────────────────────────────────
+
+export async function fetchAllUsers() {
+  const { data, error } = await supabase.from('users').select('*').order('role');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchUser(userId) {
+  const { data, error } = await supabase.from('users').select('*').eq('id', userId).single();
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchSubordinates(supervisorId) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('supervisor_id', supervisorId);
+  if (error) throw error;
+  return data || [];
+}
+
+// ── WEEKLY PLANS ──────────────────────────────────────────
+
+export async function fetchWeeklyPlan(userId, weekId = currentWeekId()) {
+  const { data, error } = await supabase
+    .from('weekly_plans')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('week_id', weekId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function upsertWeeklyPlan({ userId, role, weekId = currentWeekId(), slots, submit }) {
+  const payload = {
+    user_id: userId,
+    week_id: weekId,
+    role,
+    slots,
+    updated_at: new Date().toISOString(),
+  };
+  if (submit) {
+    payload.submitted_at = new Date().toISOString();
+  }
+  const { data, error } = await supabase
+    .from('weekly_plans')
+    .upsert(payload, { onConflict: 'user_id,week_id' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// ── DAILY ACTIVITIES ──────────────────────────────────────
+
+export async function fetchDailyActivity(userId, date = todayISO()) {
+  const { data, error } = await supabase
+    .from('daily_activities')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('date', date)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function upsertDailyActivity({
+  userId,
+  role,
+  date = todayISO(),
+  activities,
+  status = 'draft',
+  isDummy = false,
+  submit = false,
+}) {
+  const payload = {
+    user_id: userId,
+    role,
+    date,
+    activities,
+    status,
+    is_dummy: isDummy,
+    updated_at: new Date().toISOString(),
+  };
+  if (submit) payload.submitted_at = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('daily_activities')
+    .upsert(payload, { onConflict: 'user_id,date' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteDailyData(userId, date = todayISO()) {
+  const { error: e1 } = await supabase
+    .from('ai_scores')
+    .delete()
+    .eq('user_id', userId)
+    .eq('date', date);
+  if (e1) throw e1;
+  const { error: e2 } = await supabase
+    .from('daily_activities')
+    .delete()
+    .eq('user_id', userId)
+    .eq('date', date);
+  if (e2) throw e2;
+}
+
+// ── AI SCORES ─────────────────────────────────────────────
+
+export async function fetchScore(userId, date = todayISO()) {
+  const { data, error } = await supabase
+    .from('ai_scores')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('date', date)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchScoreRange(userId, dates) {
+  const { data, error } = await supabase
+    .from('ai_scores')
+    .select('date, daily_average, daily_level')
+    .eq('user_id', userId)
+    .in('date', dates);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function upsertScore({ userId, role, date = todayISO(), dailyActivityId, result, isDummy = false }) {
+  const payload = {
+    user_id: userId,
+    role,
+    date,
+    daily_activity_id: dailyActivityId || null,
+    is_dummy: isDummy,
+    scores: result.scores || [],
+    daily_average: result.daily_average ?? null,
+    daily_level: result.daily_level ?? null,
+    summary: result.summary ?? null,
+    overall_recommendation: result.overall_recommendation ?? null,
+    scored_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase
+    .from('ai_scores')
+    .upsert(payload, { onConflict: 'user_id,date' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// ── SUPERVISOR SUMMARIES ──────────────────────────────────
+
+export async function fetchSummaryFor({ supervisorId, targetUserId, date = todayISO() }) {
+  const { data, error } = await supabase
+    .from('supervisor_summaries')
+    .select('*')
+    .eq('supervisor_id', supervisorId)
+    .eq('target_user_id', targetUserId)
+    .eq('date', date)
+    .eq('session_label', 'manual')
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// Notes terbaru yang ditujukan ke target user (dari supervisornya)
+export async function fetchNotesForUser(targetUserId, date = todayISO()) {
+  const { data, error } = await supabase
+    .from('supervisor_summaries')
+    .select('*')
+    .eq('target_user_id', targetUserId)
+    .eq('date', date)
+    .not('supervisor_notes', 'is', null)
+    .order('updated_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).filter((s) => s.supervisor_notes && s.supervisor_notes.trim());
+}
+
+export async function upsertSummary({
+  supervisorId,
+  targetUserId,
+  date = todayISO(),
+  aiSummary,
+  summaryData,
+  supervisorNotes,
+  actionPlans,
+}) {
+  const payload = {
+    supervisor_id: supervisorId,
+    target_user_id: targetUserId,
+    date,
+    session_label: 'manual',
+    ai_summary: aiSummary ?? null,
+    summary_data: summaryData ?? null,
+    supervisor_notes: supervisorNotes ?? null,
+    action_plans: actionPlans ?? [],
+    generated_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase
+    .from('supervisor_summaries')
+    .upsert(payload, { onConflict: 'supervisor_id,target_user_id,date,session_label' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// ── WARNINGS ──────────────────────────────────────────────
+
+export async function fetchWarningsFor(userId) {
+  const { data, error } = await supabase
+    .from('warnings')
+    .select('*')
+    .eq('to_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchWarningsFrom(fromId) {
+  const { data, error } = await supabase
+    .from('warnings')
+    .select('*')
+    .eq('from_id', fromId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function sendWarnings({ fromId, toIds, title, message }) {
+  const rows = toIds.map((to) => ({ from_id: fromId, to_id: to, title, message }));
+  const { data, error } = await supabase.from('warnings').insert(rows).select();
+  if (error) throw error;
+  return data;
+}
+
+export async function markWarningRead(warningId) {
+  const { error } = await supabase
+    .from('warnings')
+    .update({ is_read: true, read_at: new Date().toISOString() })
+    .eq('id', warningId);
+  if (error) throw error;
+}
+
+// ── COMPOSITE: data hari ini untuk satu user ──────────────
+
+export async function fetchUserDaySnapshot(user, date = todayISO()) {
+  const [activity, score] = await Promise.all([
+    fetchDailyActivity(user.id, date),
+    fetchScore(user.id, date),
+  ]);
+  const totalSlots = slotsForRole(user.role).length;
+  const filled = activity?.activities?.filter((a) => a.actual && a.actual.trim()).length || 0;
+  let inputStatus = 'belum'; // belum | draft | scored
+  if (score) inputStatus = 'scored';
+  else if (activity) inputStatus = 'draft';
+  return { user, activity, score, totalSlots, filled, inputStatus };
+}
