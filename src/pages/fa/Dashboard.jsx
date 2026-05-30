@@ -1,7 +1,8 @@
 import { useAuth } from '../../contexts/AuthContext';
+import { useDemoTime } from '../../contexts/DemoTimeContext';
 import { useSalesDashboard } from '../../hooks/useSalesDashboard';
 import Layout from '../../components/Layout';
-import CompletionHeatmap from '../../components/CompletionHeatmap';
+import ActivityWatch from '../../components/ActivityWatch';
 import WarningBanner from '../../components/WarningBanner';
 import { FullSpinner, ErrorBox } from '../../components/ui';
 import { TodayStatusCard, PlanDailyStatus, PrimaryActions, NotesCard, SectionTitle } from '../../components/dashboard';
@@ -9,7 +10,8 @@ import { slotsForRole } from '../../constants/timeSlots';
 
 export default function FADashboard() {
   const { user } = useAuth();
-  const { loading, error, plan, activity, score, completion, warnings, notes, reload } = useSalesDashboard(user);
+  const { now } = useDemoTime();
+  const { loading, error, plan, activity, score, warnings, notes, reload } = useSalesDashboard(user, now.getTime());
   const totalSlots = slotsForRole(user.role).length;
   const unread = warnings.filter((w) => !w.is_read).length;
 
@@ -27,10 +29,8 @@ export default function FADashboard() {
             <p className="text-sm text-text-secondary">Financial Advisor · {user.branch}</p>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-4">
-            <TodayStatusCard activity={activity} score={score} totalSlots={totalSlots} />
-            <div className="card"><CompletionHeatmap data={completion} /></div>
-          </div>
+          <TodayStatusCard activity={activity} score={score} totalSlots={totalSlots} />
+          <ActivityWatch userId={user.id} end={now} />
 
           <PlanDailyStatus plan={plan} activity={activity} score={score} />
 

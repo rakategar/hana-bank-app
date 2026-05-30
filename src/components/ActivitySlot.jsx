@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Zap, X as XIcon, ImagePlus, Loader2 } from 'lucide-react';
+import { Check, Zap, X as XIcon, ImagePlus, Loader2, Lock, Clock, AlertTriangle } from 'lucide-react';
 import { clsx } from '../lib/utils';
 import { uploadActivityImage } from '../lib/storage';
 
@@ -9,11 +9,16 @@ const STATUS_OPTIONS = [
   { value: 'not_done', label: 'Not Done', icon: XIcon, color: '#EF4444' },
 ];
 
-export default function ActivitySlot({ slot, userId, date, onChange }) {
+export default function ActivitySlot({ slot, userId, date, onChange, windowState = 'open', startLabel, endLabel }) {
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState('');
 
+  const locked = windowState !== 'open';
+  const isClosed = windowState === 'closed';
+  const isUpcoming = windowState === 'upcoming';
+
   function update(patch) {
+    if (locked) return;
     onChange({ ...slot, ...patch });
   }
 
@@ -34,31 +39,49 @@ export default function ActivitySlot({ slot, userId, date, onChange }) {
   }
 
   const statusColor = STATUS_OPTIONS.find((s) => s.value === slot.activity_status)?.color;
+  const accent = isClosed ? '#EF4444' : isUpcoming ? '#94A3B8' : statusColor;
 
   return (
     <div
-      className="card relative"
-      style={statusColor ? { borderLeftColor: statusColor, borderLeftWidth: 3 } : undefined}
+      className={clsx('card relative', locked && 'opacity-95')}
+      style={accent ? { borderLeftColor: accent, borderLeftWidth: 3 } : undefined}
     >
-      <div className="flex items-baseline gap-2 mb-3">
-        <span className="font-display font-bold text-hana-teal-600 text-base">{slot.time}</span>
-        <span className="text-sm font-semibold text-ink leading-tight">{slot.label}</span>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className="font-display font-bold text-hana-teal-700 text-base">{slot.time}</span>
+          <span className="text-sm font-semibold text-ink leading-tight truncate">{slot.label}</span>
+        </div>
+        <span className="inline-flex items-center gap-1 text-[10px] text-text-muted shrink-0">
+          <Clock size={11} /> {slot.duration}m
+        </span>
       </div>
 
-      {slot.planned && (
-        <div className="mb-3 text-xs text-text-secondary bg-elevated rounded-lg px-3 py-2 border border-hana-border">
-          <span className="font-medium text-text-secondary">Rencana: </span>
-          {slot.planned}
+      {/* Banner status jendela waktu */}
+      {isUpcoming && (
+        <div className="mb-3 flex items-center gap-2 text-xs rounded-lg bg-elevated border border-hana-border px-3 py-2 text-text-secondary">
+          <Lock size={14} /> Belum waktunya — terbuka pukul <b>{startLabel}</b>
+        </div>
+      )}
+      {isClosed && (
+        <div className="mb-3 flex items-center gap-2 text-xs rounded-lg bg-score-1/10 border border-score-1/30 px-3 py-2 text-score-1">
+          <AlertTriangle size={14} /> Slot terlewat (tutup {endLabel}) — tercatat <b>tidak selesai</b>
         </div>
       )}
 
-      <label className="label">Hasil Aktual *</label>
+      {slot.planned && (
+        <div className="mb-3 text-xs text-text-secondary bg-elevated rounded-lg px-3 py-2 border border-hana-border">
+          <span className="font-medium text-text-secondary">Rencana: </span>{slot.planned}
+        </div>
+      )}
+
+      <label className="label">Hasil Aktual {!locked && '*'}</label>
       <textarea
         rows={2}
+        disabled={locked}
         value={slot.actual || ''}
         onChange={(e) => update({ actual: e.target.value })}
-        placeholder="Apa yang benar-benar dilakukan di slot ini?"
-        className="w-full text-sm px-3 py-2 resize-y"
+        placeholder={locked ? '—' : 'Apa yang benar-benar dilakukan di slot ini?'}
+        className="w-full text-sm px-3 py-2 resize-y disabled:bg-elevated disabled:cursor-not-allowed"
       />
 
       <div className="mt-3">
@@ -70,9 +93,10 @@ export default function ActivitySlot({ slot, userId, date, onChange }) {
               <button
                 key={value}
                 type="button"
+                disabled={locked}
                 onClick={() => update({ activity_status: value })}
                 className={clsx(
-                  'flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold border transition-colors',
+                  'flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold border transition-colors disabled:cursor-not-allowed',
                   active ? 'text-white' : 'text-text-secondary border-hana-border hover:border-text-secondary'
                 )}
                 style={active ? { backgroundColor: `${color}26`, borderColor: color, color } : undefined}
@@ -88,35 +112,40 @@ export default function ActivitySlot({ slot, userId, date, onChange }) {
         <label className="label">Catatan (opsional)</label>
         <textarea
           rows={1}
+          disabled={locked}
           value={slot.notes || ''}
           onChange={(e) => update({ notes: e.target.value })}
-          placeholder="Catatan tambahan..."
-          className="w-full text-sm px-3 py-2 resize-y"
+          placeholder={locked ? '—' : 'Catatan tambahan...'}
+          className="w-full text-sm px-3 py-2 resize-y disabled:bg-elevated disabled:cursor-not-allowed"
         />
       </div>
 
-      <div className="mt-3">
-        <label className="label">Bukti Foto (maks 500KB setelah kompresi)</label>
-        {slot.image_url ? (
-          <div className="flex items-center gap-3">
-            <img src={slot.image_url} alt="bukti" className="h-16 w-16 rounded-lg object-cover border border-hana-border" />
-            <button
-              type="button"
-              onClick={() => update({ image_path: null, image_url: null })}
-              className="text-xs text-score-1 hover:underline"
-            >
-              Hapus foto
-            </button>
-          </div>
-        ) : (
-          <label className="inline-flex items-center gap-2 cursor-pointer btn-ghost !py-2 !px-3 text-xs w-fit">
-            {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
-            {uploading ? 'Mengupload...' : 'Upload Foto'}
-            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} disabled={uploading} />
-          </label>
-        )}
-        {uploadErr && <p className="text-xs text-score-1 mt-1">{uploadErr}</p>}
-      </div>
+      {!locked && (
+        <div className="mt-3">
+          <label className="label">Bukti Foto (maks 500KB setelah kompresi)</label>
+          {slot.image_url ? (
+            <div className="flex items-center gap-3">
+              <img src={slot.image_url} alt="bukti" className="h-16 w-16 rounded-lg object-cover border border-hana-border" />
+              <button type="button" onClick={() => update({ image_path: null, image_url: null })} className="text-xs text-score-1 hover:underline">
+                Hapus foto
+              </button>
+            </div>
+          ) : (
+            <label className="inline-flex items-center gap-2 cursor-pointer btn-ghost !py-2 !px-3 text-xs w-fit">
+              {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
+              {uploading ? 'Mengupload...' : 'Upload Foto'}
+              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} disabled={uploading} />
+            </label>
+          )}
+          {uploadErr && <p className="text-xs text-score-1 mt-1">{uploadErr}</p>}
+        </div>
+      )}
+
+      {slot.image_url && locked && (
+        <div className="mt-3">
+          <img src={slot.image_url} alt="bukti" className="h-16 w-16 rounded-lg object-cover border border-hana-border" />
+        </div>
+      )}
     </div>
   );
 }

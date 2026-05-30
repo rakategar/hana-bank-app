@@ -1,7 +1,25 @@
+// ── Demo clock (website demo — waktu dapat diatur) ────────
+// State modul agar SEMUA helper tanggal/waktu mengikuti waktu demo.
+let _demoNow = null;
+
+export function setDemoNow(value) {
+  _demoNow = value ? new Date(value) : null;
+}
+export function clearDemoNow() {
+  _demoNow = null;
+}
+export function isDemoNowSet() {
+  return _demoNow != null;
+}
+// "Sekarang" menurut demo (atau waktu nyata bila belum diatur)
+export function nowDate() {
+  return _demoNow ? new Date(_demoNow) : new Date();
+}
+
 // ── Date & Week helpers ───────────────────────────────────
 
 export function todayISO() {
-  return formatDateISO(new Date());
+  return formatDateISO(nowDate());
 }
 
 export function formatDateISO(date) {
@@ -13,7 +31,7 @@ export function formatDateISO(date) {
 }
 
 // ISO week id, contoh: "2026-W22"
-export function currentWeekId(date = new Date()) {
+export function currentWeekId(date = nowDate()) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
@@ -34,7 +52,7 @@ export function formatDateID(dateStr) {
 }
 
 // 10 hari terakhir (termasuk hari ini), urut lama → baru
-export function lastNDates(n = 10, endDate = new Date()) {
+export function lastNDates(n = 10, endDate = nowDate()) {
   const out = [];
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date(endDate);
@@ -90,6 +108,51 @@ export function completionColor(ratio) {
   if (ratio < 0.7) return '#7FD9C6';
   if (ratio < 1) return '#2FBFA3';
   return '#04B292';
+}
+
+// ── Penjadwalan harian (Senin–Jumat) ──────────────────────
+export const DEFAULT_DURATION = 45; // menit
+export const GRACE_MINUTES = 30; // toleransi setelah durasi
+
+export const WEEKDAYS = [
+  { key: 'monday', label: 'Senin', dow: 1 },
+  { key: 'tuesday', label: 'Selasa', dow: 2 },
+  { key: 'wednesday', label: 'Rabu', dow: 3 },
+  { key: 'thursday', label: 'Kamis', dow: 4 },
+  { key: 'friday', label: 'Jumat', dow: 5 },
+];
+
+export function dayKeyFromDate(date = nowDate()) {
+  const dow = new Date(date).getDay();
+  return WEEKDAYS.find((w) => w.dow === dow)?.key || null;
+}
+export function dayLabel(key) {
+  return WEEKDAYS.find((w) => w.key === key)?.label || key;
+}
+
+// ── Time-gating aktivitas ─────────────────────────────────
+export function fmtClock(d) {
+  const h = String(new Date(d).getHours()).padStart(2, '0');
+  const m = String(new Date(d).getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+// Jendela waktu sebuah slot: [start, start + durasi + grace]
+export function slotWindow(dateStr, time, durationMin = DEFAULT_DURATION) {
+  const [h, m] = String(time).split(':').map(Number);
+  const start = new Date(`${dateStr}T00:00:00`);
+  start.setHours(h, m, 0, 0);
+  const end = new Date(start.getTime() + (Number(durationMin || 0) + GRACE_MINUTES) * 60000);
+  return { start, end };
+}
+
+// 'upcoming' (belum waktunya) | 'open' (bisa input) | 'closed' (terlewat)
+export function slotWindowState(dateStr, time, durationMin, now = nowDate()) {
+  const { start, end } = slotWindow(dateStr, time, durationMin);
+  const t = new Date(now).getTime();
+  if (t < start.getTime()) return 'upcoming';
+  if (t > end.getTime()) return 'closed';
+  return 'open';
 }
 
 // ── Misc ──────────────────────────────────────────────────

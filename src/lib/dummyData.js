@@ -143,14 +143,17 @@ const PLAN_OBJECTIVES = {
   BM: 'Pastikan tim cabang on track, dukung case high-potential & koordinasi peluang.',
 };
 
-// Bangun slots dummy untuk weekly_plans.slots (JSONB)
-export function generateDummyWeeklyPlan(role) {
+const DURATIONS = [30, 45, 60];
+
+// Bangun slots dummy untuk SATU hari (weekly_plans.slots[dayKey])
+export function generateDummyWeeklyPlan(role, dayIndex = 0) {
   const slots = slotsForRole(role);
   return slots.map((s, i) => ({
     time: s.time,
     label: s.label,
-    prospect: PROSPECTS[i % PROSPECTS.length],
-    location: LOCATIONS[i % LOCATIONS.length],
+    prospect: PROSPECTS[(i + dayIndex) % PROSPECTS.length],
+    location: LOCATIONS[(i + dayIndex) % LOCATIONS.length],
     objective: PLAN_OBJECTIVES[role] || PLAN_OBJECTIVES.FA,
+    duration: DURATIONS[(i + dayIndex) % DURATIONS.length],
   }));
 }

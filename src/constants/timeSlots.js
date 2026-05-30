@@ -56,3 +56,41 @@ export function slotsForRole(role) {
       return FA_SLOTS;
   }
 }
+
+// ── Helper penjadwalan per-hari (Senin–Jumat) ─────────────
+import { WEEKDAYS, DEFAULT_DURATION } from '../lib/utils';
+
+export function emptyDaySlots(role) {
+  return slotsForRole(role).map((t) => ({
+    time: t.time,
+    label: t.label,
+    prospect: '',
+    location: '',
+    objective: '',
+    duration: DEFAULT_DURATION,
+  }));
+}
+
+export function emptyPlanByDay(role) {
+  const out = {};
+  WEEKDAYS.forEach((w) => {
+    out[w.key] = emptyDaySlots(role);
+  });
+  return out;
+}
+
+// Normalisasi slots dari DB ke struktur { monday:[...], ... }.
+// Format lama (array) diabaikan agar mulai bersih.
+export function normalizePlanByDay(slots, role) {
+  const base = emptyPlanByDay(role);
+  if (slots && !Array.isArray(slots) && typeof slots === 'object') {
+    WEEKDAYS.forEach((w) => {
+      const day = slots[w.key];
+      if (Array.isArray(day)) {
+        const byTime = new Map(day.map((s) => [s.time, s]));
+        base[w.key] = base[w.key].map((t) => ({ ...t, ...(byTime.get(t.time) || {}) }));
+      }
+    });
+  }
+  return base;
+}

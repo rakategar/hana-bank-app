@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bot, AlertTriangle, ArrowUp, ArrowDown, Minus, ScrollText } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDemoTime } from '../../contexts/DemoTimeContext';
 import Layout from '../../components/Layout';
 import TeamHeatmap from '../../components/TeamHeatmap';
 import ScoreBadge from '../../components/ScoreBadge';
@@ -22,6 +23,7 @@ function Trend({ value }) {
 
 export default function RHDashboard() {
   const { user } = useAuth();
+  const { now } = useDemoTime();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -73,7 +75,7 @@ export default function RHDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [user.id]);
+  }, [user.id, now.getTime()]);
 
   useEffect(() => { load(); }, [load]);
 

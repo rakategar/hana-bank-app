@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bot } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDemoTime } from '../../contexts/DemoTimeContext';
 import { useSalesDashboard } from '../../hooks/useSalesDashboard';
 import Layout from '../../components/Layout';
-import CompletionHeatmap from '../../components/CompletionHeatmap';
+import ActivityWatch from '../../components/ActivityWatch';
 import WarningBanner from '../../components/WarningBanner';
 import MonitorCard from '../../components/MonitorCard';
 import ActivityDetailModal from '../../components/ActivityDetailModal';
@@ -15,8 +16,9 @@ import { slotsForRole } from '../../constants/timeSlots';
 
 export default function FWSSDashboard() {
   const { user } = useAuth();
+  const { now } = useDemoTime();
   const navigate = useNavigate();
-  const { loading, error, plan, activity, score, completion, warnings, notes, reload } = useSalesDashboard(user);
+  const { loading, error, plan, activity, score, warnings, notes, reload } = useSalesDashboard(user, now.getTime());
   const totalSlots = slotsForRole(user.role).length;
 
   const [team, setTeam] = useState([]);
@@ -53,10 +55,8 @@ export default function FWSSDashboard() {
             <p className="text-sm text-text-secondary">Field Working Sales Supervisor · {user.branch}</p>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-4">
-            <TodayStatusCard activity={activity} score={score} totalSlots={totalSlots} />
-            <div className="card"><CompletionHeatmap data={completion} /></div>
-          </div>
+          <TodayStatusCard activity={activity} score={score} totalSlots={totalSlots} />
+          <ActivityWatch userId={user.id} end={now} />
 
           <PlanDailyStatus plan={plan} activity={activity} score={score} />
           <PrimaryActions />
