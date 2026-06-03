@@ -16,6 +16,37 @@ export async function fetchUser(userId) {
   return data;
 }
 
+// Tidak error bila profil belum ada (dipakai untuk cek onboarding).
+export async function fetchUserMaybe(userId) {
+  const { data, error } = await supabase.from('users').select('*').eq('id', userId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchUsersByRole(role) {
+  const { data, error } = await supabase.from('users').select('*').eq('role', role).order('name');
+  if (error) throw error;
+  return data || [];
+}
+
+// Buat / perbarui profil user (dipakai di onboarding). id = Clerk user id.
+export async function upsertUserProfile({ id, name, role, branch, supervisorId }) {
+  const payload = {
+    id,
+    name,
+    role,
+    branch: branch || null,
+    supervisor_id: supervisorId || null,
+  };
+  const { data, error } = await supabase
+    .from('users')
+    .upsert(payload, { onConflict: 'id' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function fetchSubordinates(supervisorId) {
   const { data, error } = await supabase
     .from('users')

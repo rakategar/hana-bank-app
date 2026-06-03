@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Wand2, Save, Brain, CalendarOff } from 'lucide-react';
+import { Trash2, Save, Brain, CalendarOff, Wand2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useDemoTime } from '../contexts/DemoTimeContext';
 import Layout from '../components/Layout';
 import ActivitySlot from '../components/ActivitySlot';
 import { Modal, FullSpinner, ErrorBox, Spinner } from '../components/ui';
@@ -14,11 +13,12 @@ import {
   deleteDailyData,
   upsertScore,
 } from '../lib/db';
-import { generateDummyActivities, generateDummyScores } from '../lib/dummyData';
 import { scoreDailyActivities, isGeminiConfigured } from '../lib/gemini';
+import { generateDummyActivities, generateDummyScores } from '../lib/dummyData';
+import { IS_DEMO } from '../lib/appMode';
 import {
   todayISO, currentWeekId, dayKeyFromDate, dayLabel, formatDateID,
-  slotWindowState, slotWindow, fmtClock,
+  slotWindowState, slotWindow, fmtClock, nowDate, DEFAULT_DURATION,
 } from '../lib/utils';
 
 // Bangun slot harian dari jadwal hari tsb (planned + duration)
@@ -31,7 +31,7 @@ function buildSlots(daySchedule, savedActivity) {
       time: p.time,
       label: p.label,
       planned: plannedParts,
-      duration: p.duration ?? 45,
+      duration: p.duration ?? DEFAULT_DURATION,
       actual: saved.actual || '',
       activity_status: saved.activity_status || 'not_done',
       notes: saved.notes || '',
@@ -41,11 +41,22 @@ function buildSlots(daySchedule, savedActivity) {
   });
 }
 
-// Tutup otomatis slot yang sudah terlewat & kosong → not_done
-function applyGating(slots, date, now) {
+// Live: slot tertutup SELALU 'not_done' (tak ada aktivitas tepat waktu), walau diberi
+// alasan/foto setelahnya. Demo: time-gating dilonggarkan — hanya slot tertutup & kosong
+// yang jadi 'not_done', sehingga data dummy/late entry tetap dihormati.
+function applyGating(slots, date) {
+  if (IS_DEMO) {
+    return slots.map((s) => {
+      const state = slotWindowState(date, s.time, s.duration);
+      if (state === 'closed' && !(s.actual && s.actual.trim())) {
+        return { ...s, activity_status: 'not_done' };
+      }
+      return s;
+    });
+  }
   return slots.map((s) => {
-    const state = slotWindowState(date, s.time, s.duration, now);
-    if (state === 'closed' && !(s.actual && s.actual.trim())) {
+    const state = slotWindowState(date, s.time, s.duration);
+    if (state === 'closed') {
       return { ...s, activity_status: 'not_done' };
     }
     return s;
@@ -54,16 +65,14 @@ function applyGating(slots, date, now) {
 
 export default function DailyInput() {
   const { user } = useAuth();
-  const { now } = useDemoTime();
   const navigate = useNavigate();
   const date = todayISO();
-  const dayKey = dayKeyFromDate(now);
+  const dayKey = dayKeyFromDate(nowDate());
 
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [hasData, setHasData] = useState(false);
-  const [isDummy, setIsDummy] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [busy, setBusy] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -82,10 +91,7 @@ export default function DailyInput() {
         const byDay = plan?.slots ? normalizePlanByDay(plan.slots, user.role) : emptyPlanByDay(user.role);
         const built = buildSlots(byDay[dayKey], activity);
         setSlots(built);
-        if (activity?.activities?.length) {
-          setHasData(true);
-          setIsDummy(Boolean(activity.is_dummy));
-        }
+        if (activity?.activities?.length) setHasData(true);
       } catch (e) {
         setError(e.message || 'Gagal memuat input harian.');
       } finally {
@@ -97,21 +103,20 @@ export default function DailyInput() {
 
   const persist = useCallback(
     async (overrideSlots, opts = {}) => {
-      const payloadSlots = applyGating(overrideSlots || slots, date, now);
+      const payloadSlots = applyGating(overrideSlots || slots, date);
       await upsertDailyActivity({
         userId: user.id,
         role: user.role,
         date,
         activities: payloadSlots,
         status: opts.status || 'draft',
-        isDummy: opts.isDummy ?? isDummy,
         submit: opts.submit,
       });
       setSavedAt(new Date());
       setHasData(true);
       dirty.current = false;
     },
-    [slots, user.id, user.role, date, isDummy, now]
+    [slots, user.id, user.role, date]
   );
 
   useEffect(() => {
@@ -126,29 +131,7 @@ export default function DailyInput() {
     setSlots((prev) => prev.map((s, i) => (i === idx ? next : s)));
   }
 
-  async function handleAddDummy() {
-    setBusy('dummy');
-    setError('');
-    try {
-      const activities = generateDummyActivities(user.role);
-      const metaByTime = new Map(slots.map((s) => [s.time, s]));
-      const withMeta = activities.map((a) => {
-        const m = metaByTime.get(a.time) || {};
-        return { ...a, planned: m.planned || '', duration: m.duration ?? 45 };
-      });
-      setSlots(withMeta);
-      setIsDummy(true);
-      await persist(withMeta, { status: 'scored', isDummy: true });
-      const result = generateDummyScores(user.role, withMeta);
-      await upsertScore({ userId: user.id, role: user.role, date, result, isDummy: true });
-    } catch (e) {
-      setError(e.message || 'Gagal menambah dummy.');
-    } finally {
-      setBusy('');
-    }
-  }
-
-  async function handleDeleteDummy() {
+  async function handleDeleteDay() {
     setBusy('deleting');
     setError('');
     try {
@@ -157,7 +140,6 @@ export default function DailyInput() {
       const byDay = plan?.slots ? normalizePlanByDay(plan.slots, user.role) : emptyPlanByDay(user.role);
       setSlots(buildSlots(byDay[dayKey], null));
       setHasData(false);
-      setIsDummy(false);
       setSavedAt(null);
     } catch (e) {
       setError(e.message || 'Gagal menghapus data.');
@@ -167,8 +149,33 @@ export default function DailyInput() {
     }
   }
 
+  // Mode demo: isi semua slot dengan aktivitas + skor dummy
+  async function handleAddDummy() {
+    setBusy('dummy');
+    setError('');
+    try {
+      const activities = generateDummyActivities(user.role);
+      const metaByTime = new Map(slots.map((s) => [s.time, s]));
+      const withMeta = activities.map((a) => {
+        const m = metaByTime.get(a.time) || {};
+        return { ...a, planned: m.planned || '', duration: m.duration ?? DEFAULT_DURATION };
+      });
+      setSlots(withMeta);
+      await upsertDailyActivity({
+        userId: user.id, role: user.role, date, activities: withMeta, status: 'scored', isDummy: true,
+      });
+      const result = generateDummyScores(user.role, withMeta);
+      await upsertScore({ userId: user.id, role: user.role, date, result, isDummy: true });
+      setHasData(true);
+    } catch (e) {
+      setError(e.message || 'Gagal menambah dummy.');
+    } finally {
+      setBusy('');
+    }
+  }
+
   async function handleSubmitScore() {
-    const gated = applyGating(slots, date, now);
+    const gated = applyGating(slots, date);
     const filled = gated.filter((s) => s.actual && s.actual.trim()).length;
     if (filled === 0) {
       setError('Belum ada aktivitas terisi pada slot yang terbuka.');
@@ -178,12 +185,11 @@ export default function DailyInput() {
     setError('');
     try {
       const daily = await upsertDailyActivity({
-        userId: user.id, role: user.role, date, activities: gated, status: 'submitted', isDummy: false, submit: true,
+        userId: user.id, role: user.role, date, activities: gated, status: 'submitted', submit: true,
       });
-      setIsDummy(false);
       const result = await scoreDailyActivities({ role: user.role, activities: gated });
-      await upsertScore({ userId: user.id, role: user.role, date, dailyActivityId: daily?.id, result, isDummy: false });
-      await upsertDailyActivity({ userId: user.id, role: user.role, date, activities: gated, status: 'scored', isDummy: false });
+      await upsertScore({ userId: user.id, role: user.role, date, dailyActivityId: daily?.id, result });
+      await upsertDailyActivity({ userId: user.id, role: user.role, date, activities: gated, status: 'scored' });
       navigate('/score-result', { state: { submitted: true } });
     } catch (e) {
       setError(e.message || 'Gagal melakukan penilaian AI.');
@@ -197,7 +203,7 @@ export default function DailyInput() {
     try { await persist(); } catch (e) { setError(e.message || 'Gagal menyimpan draft.'); } finally { setBusy(''); }
   }
 
-  // Weekend / tidak ada jadwal
+  // Akhir pekan / tidak ada jadwal
   if (!loading && !dayKey) {
     return (
       <Layout title="Input Aktivitas Hari Ini" back={true}>
@@ -205,15 +211,16 @@ export default function DailyInput() {
           <CalendarOff size={36} className="text-text-muted mx-auto mb-3" />
           <p className="font-semibold">Tidak ada jadwal untuk akhir pekan</p>
           <p className="text-sm text-text-secondary mt-1">
-            Aktivitas hanya dijadwalkan Senin–Jumat. Ubah <b>Waktu Demo</b> (ikon jam di atas) ke hari kerja.
+            Aktivitas hanya dijadwalkan Senin–Jumat. Silakan kembali pada hari kerja.
           </p>
         </div>
       </Layout>
     );
   }
 
-  const viewSlots = applyGating(slots, date, now);
-  const openCount = viewSlots.filter((s) => slotWindowState(date, s.time, s.duration, now) === 'open').length;
+  const now = nowDate();
+  const viewSlots = applyGating(slots, date);
+  const openCount = viewSlots.filter((s) => slotWindowState(date, s.time, s.duration) === 'open').length;
 
   return (
     <Layout title="Input Aktivitas Hari Ini" back={true}>
@@ -233,25 +240,30 @@ export default function DailyInput() {
 
           {!isGeminiConfigured && (
             <div className="rounded-lg border border-score-2/40 bg-score-2/10 px-4 py-3 text-xs text-score-2">
-              Gemini API belum dikonfigurasi (VITE_GEMINI_API_KEY). Gunakan tombol "Tambah Dummy" untuk demo skor.
+              Penilaian AI belum aktif (VITE_GEMINI_API_KEY belum diset). Aktivitas tetap dapat
+              disimpan, namun skor AI tidak akan tersedia.
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <button onClick={handleAddDummy} disabled={Boolean(busy)} className="btn-ghost border-hana-teal-500/40 text-hana-teal-700">
-              {busy === 'dummy' ? <Spinner size={16} /> : <Wand2 size={16} />} Tambah Dummy
-            </button>
-            <button onClick={() => setConfirmDelete(true)} disabled={Boolean(busy) || !hasData} className="btn-ghost border-score-1/40 text-score-1">
-              <Trash2 size={16} /> Hapus Dummy
-            </button>
+          <div className="flex justify-end gap-2">
+            {IS_DEMO && (
+              <button onClick={handleAddDummy} disabled={Boolean(busy)} className="btn-ghost !py-2 text-xs border-hana-teal-500/40 text-hana-teal-700">
+                {busy === 'dummy' ? <Spinner size={14} /> : <Wand2 size={14} />} Tambah Dummy
+              </button>
+            )}
+            {hasData && (
+              <button onClick={() => setConfirmDelete(true)} disabled={Boolean(busy)} className="btn-ghost !py-2 text-xs border-score-1/40 text-score-1">
+                <Trash2 size={14} /> Hapus Data Hari Ini
+              </button>
+            )}
           </div>
 
-          {isDummy && <p className="text-[11px] text-score-2 -mt-1">⚠ Data saat ini adalah dummy (is_dummy = true).</p>}
           {savedAt && <p className="text-[11px] text-text-muted -mt-1">Draft tersimpan otomatis · {savedAt.toLocaleTimeString('id-ID')}</p>}
 
           <div className="grid lg:grid-cols-2 gap-4">
             {viewSlots.map((slot, idx) => {
-              const state = slotWindowState(date, slot.time, slot.duration, now);
+              // Demo: semua slot bebas diisi (tanpa penguncian waktu).
+              const state = IS_DEMO ? 'open' : slotWindowState(date, slot.time, slot.duration);
               const { start, end } = slotWindow(date, slot.time, slot.duration);
               return (
                 <ActivitySlot
@@ -287,7 +299,7 @@ export default function DailyInput() {
         footer={
           <div className="grid grid-cols-2 gap-3">
             <button onClick={() => setConfirmDelete(false)} className="btn-ghost">Batal</button>
-            <button onClick={handleDeleteDummy} disabled={busy === 'deleting'} className="btn-pink">
+            <button onClick={handleDeleteDay} disabled={busy === 'deleting'} className="btn-pink">
               {busy === 'deleting' ? <Spinner size={16} className="text-white" /> : <Trash2 size={16} />} Hapus
             </button>
           </div>

@@ -1,22 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, CheckCircle2, Wand2, Trash2, Clock } from 'lucide-react';
+import { Save, CheckCircle2, Trash2, Clock, Wand2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useDemoTime } from '../contexts/DemoTimeContext';
 import Layout from '../components/Layout';
 import { FullSpinner, ErrorBox, Spinner } from '../components/ui';
 import { emptyPlanByDay, emptyDaySlots, normalizePlanByDay } from '../constants/timeSlots';
 import { fetchWeeklyPlan, upsertWeeklyPlan } from '../lib/db';
 import { generateDummyWeeklyPlan } from '../lib/dummyData';
-import { currentWeekId, WEEKDAYS, dayKeyFromDate, clsx } from '../lib/utils';
+import { IS_DEMO } from '../lib/appMode';
+import { currentWeekId, WEEKDAYS, dayKeyFromDate, MAX_DURATION, clsx } from '../lib/utils';
 
 export default function WeeklyPlan() {
   const { user } = useAuth();
-  const { now } = useDemoTime();
   const navigate = useNavigate();
 
   const [planByDay, setPlanByDay] = useState(() => emptyPlanByDay(user.role));
-  const [activeDay, setActiveDay] = useState(() => dayKeyFromDate(now) || 'monday');
+  const [activeDay, setActiveDay] = useState(() => dayKeyFromDate(new Date()) || 'monday');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState('');
@@ -43,9 +42,15 @@ export default function WeeklyPlan() {
   const slots = planByDay[activeDay] || [];
 
   function updateSlot(idx, patch) {
+    // Durasi dibatasi maksimal MAX_DURATION (30 menit) per kegiatan.
+    const safe = { ...patch };
+    if ('duration' in safe) {
+      const d = Number(safe.duration);
+      safe.duration = Number.isFinite(d) ? Math.min(MAX_DURATION, Math.max(5, d)) : MAX_DURATION;
+    }
     setPlanByDay((prev) => ({
       ...prev,
-      [activeDay]: prev[activeDay].map((s, i) => (i === idx ? { ...s, ...patch } : s)),
+      [activeDay]: prev[activeDay].map((s, i) => (i === idx ? { ...s, ...safe } : s)),
     }));
   }
 
@@ -69,34 +74,33 @@ export default function WeeklyPlan() {
     }
   }
 
-  // Dummy hanya mengisi HARI yang sedang aktif
-  async function handleAddDummy() {
-    setBusy('dummy');
-    setError('');
-    try {
-      const dayIndex = WEEKDAYS.findIndex((w) => w.key === activeDay);
-      const dummyDay = generateDummyWeeklyPlan(user.role, dayIndex);
-      const next = { ...planByDay, [activeDay]: dummyDay };
-      setPlanByDay(next);
-      await persist(next, true);
-      setSubmitted(true);
-    } catch (e) {
-      setError(e.message || 'Gagal menambah dummy rencana.');
-    } finally {
-      setBusy('');
-    }
-  }
-
-  // Hapus mengosongkan HARI yang aktif
-  async function handleDeleteDay() {
-    setBusy('delete');
+  // Kosongkan jadwal HARI yang aktif
+  async function handleClearDay() {
+    setBusy('clear');
     setError('');
     try {
       const next = { ...planByDay, [activeDay]: emptyDaySlots(user.role) };
       setPlanByDay(next);
       await persist(next, false);
     } catch (e) {
-      setError(e.message || 'Gagal menghapus jadwal hari ini.');
+      setError(e.message || 'Gagal mengosongkan jadwal hari ini.');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  // Mode demo: isi hari aktif dengan data dummy
+  async function handleAddDummy() {
+    setBusy('dummy');
+    setError('');
+    try {
+      const dayIndex = WEEKDAYS.findIndex((w) => w.key === activeDay);
+      const next = { ...planByDay, [activeDay]: generateDummyWeeklyPlan(user.role, dayIndex) };
+      setPlanByDay(next);
+      await persist(next, true);
+      setSubmitted(true);
+    } catch (e) {
+      setError(e.message || 'Gagal menambah dummy rencana.');
     } finally {
       setBusy('');
     }
@@ -113,7 +117,7 @@ export default function WeeklyPlan() {
           <div className="card flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold">{currentWeekId()} · {user.role}</p>
-              <p className="text-xs text-text-muted mt-0.5">Jadwalkan aktivitas untuk Senin–Jumat</p>
+              <p className="text-xs text-text-muted mt-0.5">Jadwalkan aktivitas Senin–Jumat · durasi maks {MAX_DURATION} menit/kegiatan</p>
               {submitted && (
                 <p className="inline-flex items-center gap-1.5 text-xs text-score-4 mt-2">
                   <CheckCircle2 size={14} /> Rencana minggu ini sudah disubmit
@@ -121,11 +125,13 @@ export default function WeeklyPlan() {
               )}
             </div>
             <div className="flex gap-2">
-              <button onClick={handleAddDummy} disabled={Boolean(busy)} className="btn-ghost !py-2 text-xs border-hana-teal-500/40 text-hana-teal-700">
-                {busy === 'dummy' ? <Spinner size={14} /> : <Wand2 size={14} />} Dummy {WEEKDAYS.find((w) => w.key === activeDay)?.label}
-              </button>
-              <button onClick={handleDeleteDay} disabled={Boolean(busy)} className="btn-ghost !py-2 text-xs border-score-1/40 text-score-1">
-                <Trash2 size={14} /> Hapus Hari Ini
+              {IS_DEMO && (
+                <button onClick={handleAddDummy} disabled={Boolean(busy)} className="btn-ghost !py-2 text-xs border-hana-teal-500/40 text-hana-teal-700">
+                  {busy === 'dummy' ? <Spinner size={14} /> : <Wand2 size={14} />} Dummy {WEEKDAYS.find((w) => w.key === activeDay)?.label}
+                </button>
+              )}
+              <button onClick={handleClearDay} disabled={Boolean(busy)} className="btn-ghost !py-2 text-xs border-score-1/40 text-score-1">
+                {busy === 'clear' ? <Spinner size={14} /> : <Trash2 size={14} />} Kosongkan Hari Ini
               </button>
             </div>
           </div>
@@ -183,14 +189,15 @@ export default function WeeklyPlan() {
                         <input
                           type="number"
                           min={5}
-                          max={240}
+                          max={MAX_DURATION}
                           step={5}
                           className="w-full px-3 py-2 text-sm pr-9"
-                          value={slot.duration ?? 45}
+                          value={slot.duration ?? MAX_DURATION}
                           onChange={(e) => updateSlot(idx, { duration: Number(e.target.value) })}
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-text-muted">mnt</span>
                       </div>
+                      <p className="text-[10px] text-text-muted mt-1">maks {MAX_DURATION}m</p>
                     </div>
                   </div>
                 </div>

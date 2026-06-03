@@ -1,74 +1,29 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { LogIn, ShieldCheck } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { fetchAllUsers } from '../lib/db';
-import { isSupabaseConfigured } from '../lib/supabase';
-import UserCard from '../components/UserCard';
-import { FullSpinner, ErrorBox } from '../components/ui';
+import { ShieldCheck } from 'lucide-react';
+import { SignIn } from '@clerk/react';
+import { IS_DEMO } from '../lib/appMode';
+import DemoLogin from './DemoLogin';
 import logo from '/hana-bank-logo.png';
 
-const DEMO_PASSWORD = 'icu2026';
-
-const FALLBACK_USERS = [
-  { id: 'rh_001', name: 'Budi Hartono', role: 'RH', branch: 'Regional Jakarta', supervisor_id: null },
-  { id: 'bm_001', name: 'Drs. Agus Salim', role: 'BM', branch: 'Regional Jakarta', supervisor_id: 'rh_001' },
-  { id: 'fwss_001', name: 'Hendra Wijaya', role: 'FWSS', branch: 'Cabang Jakarta Pusat', supervisor_id: 'bm_001' },
-  { id: 'fwss_002', name: 'Maya Sari', role: 'FWSS', branch: 'Cabang Jakarta Selatan', supervisor_id: 'bm_001' },
-  { id: 'fa_001', name: 'Andi Pratama', role: 'FA', branch: 'Cabang Jakarta Pusat', supervisor_id: 'fwss_001' },
-  { id: 'fa_002', name: 'Sari Dewi', role: 'FA', branch: 'Cabang Jakarta Pusat', supervisor_id: 'fwss_001' },
-  { id: 'fa_003', name: 'Budi Santoso', role: 'FA', branch: 'Cabang Jakarta Selatan', supervisor_id: 'fwss_002' },
-  { id: 'fa_004', name: 'Rina Marlina', role: 'FA', branch: 'Cabang Jakarta Selatan', supervisor_id: 'fwss_002' },
-];
-
-const ROLE_ORDER = { RH: 0, BM: 1, FWSS: 2, FA: 3 };
+// Tampilan Clerk disesuaikan dengan brand (teal) — Google-only diatur di dashboard Clerk.
+const clerkAppearance = {
+  variables: {
+    colorPrimary: '#04B292',
+    colorText: '#1F2933',
+    colorBackground: '#FFFFFF',
+    borderRadius: '0.625rem',
+    fontFamily: '"DM Sans", sans-serif',
+  },
+  elements: {
+    rootBox: 'w-full',
+    card: 'shadow-none border-0 bg-transparent',
+    headerTitle: 'font-display',
+    socialButtonsBlockButton:
+      'border-hana-border hover:bg-elevated text-ink font-medium',
+    footer: 'hidden',
+  },
+};
 
 export default function Login() {
-  const { login, dashboardPath } = useAuth();
-  const navigate = useNavigate();
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [manual, setManual] = useState({ username: '', password: '' });
-  const [manualErr, setManualErr] = useState('');
-
-  useEffect(() => {
-    (async () => {
-      try {
-        if (isSupabaseConfigured) {
-          const data = await fetchAllUsers();
-          setUsers(data.length ? data : FALLBACK_USERS);
-        } else {
-          setUsers(FALLBACK_USERS);
-        }
-      } catch (e) {
-        setError('Gagal memuat user dari Supabase, memakai data demo. ' + (e.message || ''));
-        setUsers(FALLBACK_USERS);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  function doLogin(user) {
-    login(user);
-    navigate(dashboardPath(user.role), { replace: true });
-  }
-
-  function handleManual(e) {
-    e.preventDefault();
-    setManualErr('');
-    const found = users.find(
-      (u) => u.id.toLowerCase() === manual.username.trim().toLowerCase() ||
-        u.name.toLowerCase() === manual.username.trim().toLowerCase()
-    );
-    if (!found) return setManualErr('User tidak ditemukan. Gunakan ID seperti fa_001.');
-    if (manual.password !== DEMO_PASSWORD) return setManualErr('Password salah. (Demo: icu2026)');
-    doLogin(found);
-  }
-
-  const sorted = [...users].sort((a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9));
-
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-2">
       {/* Brand panel */}
@@ -99,52 +54,32 @@ export default function Login() {
         <p className="relative text-[11px] text-white/40">v4.0 · Bank Hana © 2026</p>
       </div>
 
-      {/* Login panel */}
+      {/* Auth panel */}
       <div className="flex flex-col bg-charcoal min-h-screen lg:min-h-0">
-        <div className="flex-1 w-full max-w-xl mx-auto px-5 py-10 flex flex-col justify-center">
+        <div className="flex-1 w-full max-w-md mx-auto px-5 py-10 flex flex-col justify-center">
           <div className="lg:hidden flex flex-col items-center text-center mb-6">
             <img src={logo} alt="Bank Hana" className="h-14 w-14 mb-2" />
             <h1 className="font-display text-2xl font-extrabold">ICU CLASS</h1>
             <p className="text-hana-teal-600 font-display font-bold text-sm">BANK HANA</p>
           </div>
 
-          <div className="mb-5">
-            <h2 className="font-display text-2xl font-bold">Masuk ke Akun Anda</h2>
-            <p className="text-sm text-text-secondary mt-1">Mode demo — klik salah satu kartu untuk langsung masuk.</p>
-          </div>
-
-          {error && <div className="mb-4"><ErrorBox>{error}</ErrorBox></div>}
-
-          {loading ? (
-            <FullSpinner label="Memuat daftar user..." />
+          {IS_DEMO ? (
+            <DemoLogin />
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-3">
-                {sorted.map((u) => (
-                  <UserCard key={u.id} user={u} onClick={doLogin} />
-                ))}
+              <div className="mb-5">
+                <h2 className="font-display text-2xl font-bold">Masuk ke Akun Anda</h2>
+                <p className="text-sm text-text-secondary mt-1">
+                  Masuk atau daftar menggunakan akun Google Anda untuk melanjutkan.
+                </p>
               </div>
 
-              <details className="mt-6 group">
-                <summary className="cursor-pointer text-sm text-text-secondary hover:text-ink list-none">
-                  <span className="underline underline-offset-4">Login manual (username + password)</span>
-                </summary>
-                <form onSubmit={handleManual} className="card mt-3 space-y-3">
-                  <div>
-                    <label className="label">Username / ID</label>
-                    <input className="w-full px-3 py-2 text-sm" placeholder="fa_001" value={manual.username} onChange={(e) => setManual((m) => ({ ...m, username: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="label">Password</label>
-                    <input type="password" className="w-full px-3 py-2 text-sm" placeholder="icu2026" value={manual.password} onChange={(e) => setManual((m) => ({ ...m, password: e.target.value }))} />
-                  </div>
-                  {manualErr && <p className="text-xs text-score-1">{manualErr}</p>}
-                  <button type="submit" className="btn-teal w-full"><LogIn size={16} /> Masuk</button>
-                </form>
-              </details>
+              <div className="card">
+                <SignIn appearance={clerkAppearance} routing="hash" signUpUrl="#/sign-up" />
+              </div>
 
               <p className="flex items-center gap-1.5 text-[11px] text-text-muted mt-6 justify-center">
-                <ShieldCheck size={13} /> Sesi tersimpan aman di perangkat Anda
+                <ShieldCheck size={13} /> Autentikasi aman oleh Clerk
               </p>
             </>
           )}

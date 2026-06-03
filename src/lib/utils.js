@@ -1,5 +1,11 @@
-// ── Demo clock (website demo — waktu dapat diatur) ────────
-// State modul agar SEMUA helper tanggal/waktu mengikuti waktu demo.
+import { DEFAULT_DURATION, MAX_DURATION } from './appMode';
+
+// Re-export agar konsumen lama (import dari utils) tetap berfungsi.
+export { DEFAULT_DURATION, MAX_DURATION };
+
+// ── Demo clock (hanya aktif di mode demo) ─────────────────
+// State modul agar helper tanggal/waktu bisa mengikuti waktu demo.
+// Di mode live, setDemoNow tidak pernah dipanggil → nowDate() = waktu nyata.
 let _demoNow = null;
 
 export function setDemoNow(value) {
@@ -11,7 +17,7 @@ export function clearDemoNow() {
 export function isDemoNowSet() {
   return _demoNow != null;
 }
-// "Sekarang" menurut demo (atau waktu nyata bila belum diatur)
+// "Sekarang" — waktu demo bila diatur, selain itu waktu sistem nyata.
 export function nowDate() {
   return _demoNow ? new Date(_demoNow) : new Date();
 }
@@ -111,7 +117,8 @@ export function completionColor(ratio) {
 }
 
 // ── Penjadwalan harian (Senin–Jumat) ──────────────────────
-export const DEFAULT_DURATION = 45; // menit
+// Durasi default & maksimal tergantung mode (live: 30m, demo: longgar).
+// Diimpor lalu di-re-export agar tersedia sebagai binding lokal (dipakai slotWindow).
 export const GRACE_MINUTES = 30; // toleransi setelah durasi
 
 export const WEEKDAYS = [

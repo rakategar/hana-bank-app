@@ -1,6 +1,6 @@
 import { useAuth } from '../../contexts/AuthContext';
-import { useDemoTime } from '../../contexts/DemoTimeContext';
 import { useSalesDashboard } from '../../hooks/useSalesDashboard';
+import { useNowKey } from '../../hooks/useNowKey';
 import Layout from '../../components/Layout';
 import ActivityWatch from '../../components/ActivityWatch';
 import WarningBanner from '../../components/WarningBanner';
@@ -10,8 +10,8 @@ import { slotsForRole } from '../../constants/timeSlots';
 
 export default function FADashboard() {
   const { user } = useAuth();
-  const { now } = useDemoTime();
-  const { loading, error, plan, activity, score, warnings, notes, reload } = useSalesDashboard(user, now.getTime());
+  const nowKey = useNowKey();
+  const { loading, error, plan, activity, score, warnings, notes, reload } = useSalesDashboard(user, nowKey);
   const totalSlots = slotsForRole(user.role).length;
   const unread = warnings.filter((w) => !w.is_read).length;
 
@@ -30,7 +30,7 @@ export default function FADashboard() {
           </div>
 
           <TodayStatusCard activity={activity} score={score} totalSlots={totalSlots} />
-          <ActivityWatch userId={user.id} end={now} />
+          <ActivityWatch userId={user.id} />
 
           <PlanDailyStatus plan={plan} activity={activity} score={score} />
 

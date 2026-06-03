@@ -10,8 +10,8 @@ import { currentWeekId } from '../lib/utils';
 
 // Data umum dashboard FA/FWSS/BM untuk user yang login.
 // Catatan: skor sendiri TIDAK ditampilkan (privasi).
-// `nowKey` memicu reload saat waktu demo diubah.
-export function useSalesDashboard(user, nowKey) {
+// `nowKey` (mode demo) memicu reload saat waktu demo diubah.
+export function useSalesDashboard(user, nowKey = 0) {
   const [state, setState] = useState({
     loading: true,
     error: '',

@@ -13,12 +13,17 @@ export default function ActivitySlot({ slot, userId, date, onChange, windowState
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState('');
 
-  const locked = windowState !== 'open';
+  const isOpen = windowState === 'open';
   const isClosed = windowState === 'closed';
   const isUpcoming = windowState === 'upcoming';
 
+  // Saat OPEN: semua field aktif.
+  // Saat CLOSED: "Hasil Aktual" & status terkunci (tetap not_done), tapi alasan & foto AKTIF.
+  // Saat UPCOMING: semua terkunci.
+  const canEditActual = isOpen;
+  const canAttach = isOpen || isClosed; // alasan/catatan & foto bukti
+
   function update(patch) {
-    if (locked) return;
     onChange({ ...slot, ...patch });
   }
 
@@ -43,7 +48,7 @@ export default function ActivitySlot({ slot, userId, date, onChange, windowState
 
   return (
     <div
-      className={clsx('card relative', locked && 'opacity-95')}
+      className={clsx('card relative', isUpcoming && 'opacity-95')}
       style={accent ? { borderLeftColor: accent, borderLeftWidth: 3 } : undefined}
     >
       <div className="flex items-center justify-between gap-2 mb-2">
@@ -63,8 +68,9 @@ export default function ActivitySlot({ slot, userId, date, onChange, windowState
         </div>
       )}
       {isClosed && (
-        <div className="mb-3 flex items-center gap-2 text-xs rounded-lg bg-score-1/10 border border-score-1/30 px-3 py-2 text-score-1">
-          <AlertTriangle size={14} /> Slot terlewat (tutup {endLabel}) — tercatat <b>tidak selesai</b>
+        <div className="mb-3 flex items-start gap-2 text-xs rounded-lg bg-score-1/10 border border-score-1/30 px-3 py-2 text-score-1">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <span>Slot tertutup (tutup {endLabel}) — tercatat <b>tidak selesai</b>. Anda tetap dapat memberi alasan &amp; bukti foto di bawah.</span>
         </div>
       )}
 
@@ -74,13 +80,13 @@ export default function ActivitySlot({ slot, userId, date, onChange, windowState
         </div>
       )}
 
-      <label className="label">Hasil Aktual {!locked && '*'}</label>
+      <label className="label">Hasil Aktual {canEditActual && '*'}</label>
       <textarea
         rows={2}
-        disabled={locked}
+        disabled={!canEditActual}
         value={slot.actual || ''}
         onChange={(e) => update({ actual: e.target.value })}
-        placeholder={locked ? '—' : 'Apa yang benar-benar dilakukan di slot ini?'}
+        placeholder={canEditActual ? 'Apa yang benar-benar dilakukan di slot ini?' : '—'}
         className="w-full text-sm px-3 py-2 resize-y disabled:bg-elevated disabled:cursor-not-allowed"
       />
 
@@ -93,10 +99,10 @@ export default function ActivitySlot({ slot, userId, date, onChange, windowState
               <button
                 key={value}
                 type="button"
-                disabled={locked}
+                disabled={!canEditActual}
                 onClick={() => update({ activity_status: value })}
                 className={clsx(
-                  'flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold border transition-colors disabled:cursor-not-allowed',
+                  'flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold border transition-colors disabled:cursor-not-allowed disabled:opacity-60',
                   active ? 'text-white' : 'text-text-secondary border-hana-border hover:border-text-secondary'
                 )}
                 style={active ? { backgroundColor: `${color}26`, borderColor: color, color } : undefined}
@@ -106,23 +112,26 @@ export default function ActivitySlot({ slot, userId, date, onChange, windowState
             );
           })}
         </div>
+        {isClosed && (
+          <p className="text-[10px] text-text-muted mt-1">Status terkunci sebagai "Not Done" karena slot sudah lewat.</p>
+        )}
       </div>
 
       <div className="mt-3">
-        <label className="label">Catatan (opsional)</label>
+        <label className="label">{isClosed ? 'Alasan tidak mengisi tepat waktu' : 'Catatan (opsional)'}</label>
         <textarea
-          rows={1}
-          disabled={locked}
+          rows={isClosed ? 2 : 1}
+          disabled={!canAttach}
           value={slot.notes || ''}
           onChange={(e) => update({ notes: e.target.value })}
-          placeholder={locked ? '—' : 'Catatan tambahan...'}
+          placeholder={canAttach ? (isClosed ? 'Jelaskan kenapa slot ini terlewat...' : 'Catatan tambahan...') : '—'}
           className="w-full text-sm px-3 py-2 resize-y disabled:bg-elevated disabled:cursor-not-allowed"
         />
       </div>
 
-      {!locked && (
+      {canAttach && (
         <div className="mt-3">
-          <label className="label">Bukti Foto (maks 500KB setelah kompresi)</label>
+          <label className="label">{isClosed ? 'Bukti Foto (pendukung alasan)' : 'Bukti Foto (maks 500KB setelah kompresi)'}</label>
           {slot.image_url ? (
             <div className="flex items-center gap-3">
               <img src={slot.image_url} alt="bukti" className="h-16 w-16 rounded-lg object-cover border border-hana-border" />
@@ -141,7 +150,7 @@ export default function ActivitySlot({ slot, userId, date, onChange, windowState
         </div>
       )}
 
-      {slot.image_url && locked && (
+      {slot.image_url && isUpcoming && (
         <div className="mt-3">
           <img src={slot.image_url} alt="bukti" className="h-16 w-16 rounded-lg object-cover border border-hana-border" />
         </div>

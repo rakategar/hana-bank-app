@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 
 import Login from './pages/Login';
+import Onboarding from './pages/Onboarding';
 import FADashboard from './pages/fa/Dashboard';
 import FWSSDashboard from './pages/fwss/Dashboard';
 import BMDashboard from './pages/bm/Dashboard';
@@ -13,30 +14,53 @@ import FWSSSummary from './pages/fwss/Summary';
 import BMSummary from './pages/bm/Summary';
 import RHSummary from './pages/rh/Summary';
 
+function Loader() {
+  return (
+    <div className="min-h-screen grid place-items-center bg-charcoal">
+      <div className="h-10 w-10 rounded-full border-2 border-hana-teal-500 border-t-transparent animate-spin" />
+    </div>
+  );
+}
+
 function ProtectedRoute({ role, children }) {
-  const { user, ready, dashboardPath } = useAuth();
+  const { user, ready, isSignedIn, needsOnboarding, dashboardPath } = useAuth();
   const location = useLocation();
 
-  if (!ready) return null;
-  if (!user) return <Navigate to="/" replace state={{ from: location }} />;
+  if (!ready) return <Loader />;
+  if (!isSignedIn) return <Navigate to="/" replace state={{ from: location }} />;
+  if (needsOnboarding) return <Navigate to="/onboarding" replace />;
   if (role && user.role !== role) return <Navigate to={dashboardPath()} replace />;
   return children;
 }
 
 export default function App() {
-  const { user, ready, dashboardPath } = useAuth();
+  const { user, ready, isSignedIn, needsOnboarding, dashboardPath } = useAuth();
 
-  if (!ready) {
-    return (
-      <div className="min-h-screen grid place-items-center bg-charcoal">
-        <div className="h-10 w-10 rounded-full border-2 border-hana-teal-500 border-t-transparent animate-spin" />
-      </div>
-    );
-  }
+  if (!ready) return <Loader />;
 
   return (
     <Routes>
-      <Route path="/" element={user ? <Navigate to={dashboardPath()} replace /> : <Login />} />
+      <Route
+        path="/"
+        element={
+          isSignedIn
+            ? needsOnboarding
+              ? <Navigate to="/onboarding" replace />
+              : <Navigate to={dashboardPath()} replace />
+            : <Login />
+        }
+      />
+
+      <Route
+        path="/onboarding"
+        element={
+          !isSignedIn
+            ? <Navigate to="/" replace />
+            : user
+              ? <Navigate to={dashboardPath()} replace />
+              : <Onboarding />
+        }
+      />
 
       <Route path="/dashboard/fa" element={<ProtectedRoute role="FA"><FADashboard /></ProtectedRoute>} />
       <Route path="/dashboard/fwss" element={<ProtectedRoute role="FWSS"><FWSSDashboard /></ProtectedRoute>} />
