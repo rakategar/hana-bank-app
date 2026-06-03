@@ -83,7 +83,7 @@ export default function Login() {
           </div>
         </div>
         <div className="relative">
-          <h1 className="font-display text-4xl font-extrabold leading-tight">
+          <h1 className="font-display text-4xl font-extrabold leading-tight text-white">
             Intensive Control<br />&amp; Upgrading
           </h1>
           <p className="text-white/70 mt-3 max-w-md">
