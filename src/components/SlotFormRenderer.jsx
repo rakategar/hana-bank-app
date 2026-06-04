@@ -4,15 +4,18 @@ import { clsx } from '../lib/utils';
 // Renderer form schema-driven. Dipakai di 3 tempat:
 //  1. WeeklyPlan — mode edit untuk slot.data (rencana)
 //  2. ActivitySlot panel atas — readOnly untuk slot.planned_data
-//  3. ActivitySlot panel bawah — mode edit untuk slot.actual_data (aktual)
+//  3. ActivitySlot panel bawah — mode='actual' untuk slot.actual_data
 //
 // Props:
-//  schema   : array field definition (lihat formSchemaFor di timeSlots.js)
-//  value    : object nilai { key: value | [items] }
-//  onChange : (newValueObject) => void
-//  users    : { supervisor, subordinates } untuk field user-select
-//  readOnly : true → tampilkan sebagai teks, tidak bisa diedit
-//  disabled : true → input dinonaktifkan (mis. slot upcoming/closed)
+//  schema       : array field definition (lihat formSchemaFor di timeSlots.js)
+//  value        : object nilai { key: value | [items] }
+//  onChange     : (newValueObject) => void
+//  users        : { supervisor, subordinates } untuk field user-select
+//  readOnly     : true → tampilkan sebagai teks
+//  disabled     : true → input dinonaktifkan
+//  mode         : 'plan' (default) | 'actual'
+//    actual mode: field list dengan resultSchema mengacu planned items (tidak bisa tambah/hapus)
+//  plannedValue : object planned_data (dipakai di mode='actual' untuk list fields)
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -29,7 +32,16 @@ function userName(id, users) {
 
 const INPUT_CLS = 'w-full px-3 py-2 text-sm disabled:bg-elevated disabled:cursor-not-allowed';
 
-export default function SlotFormRenderer({ schema = [], value = {}, onChange, users, readOnly = false, disabled = false }) {
+export default function SlotFormRenderer({
+  schema = [],
+  value = {},
+  onChange,
+  users,
+  readOnly = false,
+  disabled = false,
+  mode = 'plan',
+  plannedValue = {},
+}) {
   const setField = (key, v) => onChange?.({ ...value, [key]: v });
 
   // ── READ-ONLY (tampilan rencana) ───────────────────────
@@ -56,16 +68,38 @@ export default function SlotFormRenderer({ schema = [], value = {}, onChange, us
   // ── EDITABLE ───────────────────────────────────────────
   return (
     <div className="grid gap-3">
-      {schema.map((field) => (
-        <FieldEditor
-          key={field.key}
-          field={field}
-          value={value?.[field.key]}
-          onChange={(v) => setField(field.key, v)}
-          users={users}
-          disabled={disabled}
-        />
-      ))}
+      {schema.map((field) => {
+        // Actual mode: list dengan resultSchema + ada planned items → ActualListField
+        if (
+          mode === 'actual' &&
+          field.type === 'list' &&
+          field.resultSchema?.length > 0 &&
+          Array.isArray(plannedValue?.[field.key]) &&
+          plannedValue[field.key].length > 0
+        ) {
+          return (
+            <ActualListField
+              key={field.key}
+              field={field}
+              value={value?.[field.key]}
+              plannedItems={plannedValue[field.key]}
+              onChange={(v) => setField(field.key, v)}
+              users={users}
+              disabled={disabled}
+            />
+          );
+        }
+        return (
+          <FieldEditor
+            key={field.key}
+            field={field}
+            value={value?.[field.key]}
+            onChange={(v) => setField(field.key, v)}
+            users={users}
+            disabled={disabled}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -100,7 +134,7 @@ function renderReadValue(field, v, users) {
   return String(v);
 }
 
-// Editor untuk satu field (kecuali list ditangani sendiri)
+// Editor untuk satu field (list ditangani sendiri)
 function FieldEditor({ field, value, onChange, users, disabled }) {
   if (field.type === 'list') {
     return <ListField field={field} value={value} onChange={onChange} users={users} disabled={disabled} />;
@@ -212,6 +246,7 @@ function UserSelect({ field, value, onChange, users, disabled }) {
   );
 }
 
+// List field editable penuh (mode plan — boleh tambah/hapus baris)
 function ListField({ field, value, onChange, users, disabled }) {
   const rows = Array.isArray(value) ? value : [];
 
@@ -257,6 +292,68 @@ function ListField({ field, value, onChange, users, disabled }) {
         )}
         {rows.length === 0 && disabled && <p className="text-xs text-text-muted italic">—</p>}
       </div>
+    </div>
+  );
+}
+
+// Actual mode: list field yang mereferensi planned items — tidak bisa tambah/hapus
+// Tiap planned item tampil sebagai kartu: atas read-only (planned), bawah editable (result)
+function ActualListField({ field, value, plannedItems, onChange, users, disabled }) {
+  const rows = Array.isArray(value) && value.length === plannedItems.length
+    ? value
+    : plannedItems.map((item, i) => {
+        const existing = Array.isArray(value) ? value[i] : null;
+        return { ...item, ...(existing || {}) };
+      });
+
+  const updateResult = (i, key, v) => {
+    const next = rows.map((r, idx) => (idx === i ? { ...r, [key]: v } : r));
+    onChange(next);
+  };
+
+  return (
+    <div>
+      <label className="label">{field.label}</label>
+      {rows.length === 0 ? (
+        <p className="text-xs text-text-muted italic">Tidak ada item yang direncanakan.</p>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((row, i) => (
+            <div key={i} className="rounded-lg border border-hana-border overflow-hidden">
+              {/* Planned item (read-only) */}
+              <div className="bg-elevated/70 px-3 py-2 border-b border-hana-border">
+                <p className="text-[10px] font-semibold text-text-muted mb-1">Rencana #{i + 1}</p>
+                <p className="text-xs text-ink">
+                  {field.itemSchema
+                    .map((sub) => {
+                      const cell = row?.[sub.key];
+                      if (cell == null || cell === '') return null;
+                      const display = sub.type === 'user-select' ? userName(cell, users) : cell;
+                      return `${sub.label}: ${display}`;
+                    })
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              </div>
+              {/* Result fields (editable) */}
+              <div className="p-2.5 grid gap-2">
+                {field.resultSchema.map((sub) => (
+                  <div key={sub.key}>
+                    <label className="block text-[10px] font-medium text-text-muted mb-0.5">{sub.label}</label>
+                    <InputControl
+                      field={sub}
+                      value={row?.[sub.key]}
+                      onChange={(v) => updateResult(i, sub.key, v)}
+                      users={users}
+                      disabled={disabled}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

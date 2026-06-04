@@ -1,48 +1,48 @@
 // Template 12 time slot per role (dari PDF program ICU Class)
 
 export const FA_SLOTS = [
-  { time: '07:30', label: 'Morning Briefing & Target Commitment' },
-  { time: '08:00', label: 'Pipeline Review & Prioritas Nasabah' },
-  { time: '09:00', label: 'Tele-Appointment & Customer Engagement' },
-  { time: '10:00', label: 'Prospecting & Referral Sourcing' },
-  { time: '11:00', label: 'Customer Meeting & Product Presentation' },
-  { time: '12:00', label: 'Persiapan Meeting & Kelengkapan Aplikasi' },
-  { time: '13:00', label: 'Midday Checkpoint & Recovery Action' },
-  { time: '14:00', label: 'Customer Meeting & Advisory Session' },
-  { time: '15:00', label: 'Closing Follow Up & Objection Handling' },
-  { time: '16:00', label: 'Update CRM & Submit Activity' },
-  { time: '17:00', label: 'Sales Coaching & Skill Practice' },
-  { time: '18:00', label: 'Evening Review & Pipeline Lock Besok' },
+  { time: '07:30', endTime: '08:00', label: 'Morning Briefing & Target Commitment' },
+  { time: '08:00', endTime: '09:00', label: 'Pipeline Review & Prioritas Nasabah' },
+  { time: '09:00', endTime: '10:00', label: 'Tele-Appointment & Customer Engagement' },
+  { time: '10:00', endTime: '11:00', label: 'Prospecting & Referral Sourcing' },
+  { time: '11:00', endTime: '12:00', label: 'Customer Meeting & Product Presentation' },
+  { time: '12:00', endTime: '13:00', label: 'Persiapan Meeting & Kelengkapan Aplikasi' },
+  { time: '13:00', endTime: '14:00', label: 'Midday Checkpoint & Recovery Action' },
+  { time: '14:00', endTime: '15:00', label: 'Customer Meeting & Advisory Session' },
+  { time: '15:00', endTime: '16:00', label: 'Closing Follow Up & Objection Handling' },
+  { time: '16:00', endTime: '17:00', label: 'Update CRM & Submit Activity' },
+  { time: '17:00', endTime: '18:00', label: 'Sales Coaching & Skill Practice' },
+  { time: '18:00', endTime: '19:00', label: 'Evening Review & Pipeline Lock Besok' },
 ];
 
 export const FWSS_SLOTS = [
-  { time: '07:30', label: 'Daily Recovery Direction & Target Lock' },
-  { time: '08:00', label: 'Pipeline Control & FA Monitoring' },
-  { time: '09:00', label: 'Morning Activation & Sales Recovery' },
-  { time: '10:00', label: 'Branch Opportunity & Lead Activation' },
-  { time: '11:00', label: 'Case Review & Solution Discussion' },
-  { time: '12:00', label: 'Recovery Coaching & Result Enforcement' },
-  { time: '13:00', label: 'Joint Meeting & Assisted Closing' },
-  { time: '14:00', label: 'Midday Monitoring & Recovery Intervention' },
-  { time: '15:00', label: 'Closing Push & Conversion Acceleration' },
-  { time: '16:00', label: 'CRM Monitoring & Activity Discipline' },
-  { time: '17:00', label: 'Sales Clinic & Recovery Reinforcement' },
-  { time: '18:00', label: 'End Day Accountability & Direction' },
+  { time: '07:30', endTime: '08:00', label: 'Daily Recovery Direction & Target Lock' },
+  { time: '08:00', endTime: '09:00', label: 'Pipeline Control & FA Monitoring' },
+  { time: '09:00', endTime: '10:00', label: 'Morning Activation & Sales Recovery' },
+  { time: '10:00', endTime: '11:00', label: 'Branch Opportunity & Lead Activation' },
+  { time: '11:00', endTime: '12:00', label: 'Case Review & Solution Discussion' },
+  { time: '12:00', endTime: '13:00', label: 'Recovery Coaching & Result Enforcement' },
+  { time: '13:00', endTime: '14:00', label: 'Joint Meeting & Assisted Closing' },
+  { time: '14:00', endTime: '15:00', label: 'Midday Monitoring & Recovery Intervention' },
+  { time: '15:00', endTime: '16:00', label: 'Closing Push & Conversion Acceleration' },
+  { time: '16:00', endTime: '17:00', label: 'CRM Monitoring & Activity Discipline' },
+  { time: '17:00', endTime: '18:00', label: 'Sales Clinic & Recovery Reinforcement' },
+  { time: '18:00', endTime: '19:00', label: 'End Day Accountability & Direction' },
 ];
 
 export const BM_SLOTS = [
-  { time: '07:30', label: 'Business Direction & Daily Alignment' },
-  { time: '08:00', label: 'Pipeline Monitoring & Priority Support' },
-  { time: '09:00', label: 'Morning Support & Team Reinforcement' },
-  { time: '10:00', label: 'Branch Coordination & Business Opportunity' },
-  { time: '11:00', label: 'Support High Potential Customer Case' },
-  { time: '12:00', label: 'Business Reinforcement & Team Support' },
-  { time: '13:00', label: 'Joint Meeting & Closing Support' },
-  { time: '14:00', label: 'Midday Monitoring & Recovery Support' },
-  { time: '15:00', label: 'Escalation Support & Closing Assistance' },
-  { time: '16:00', label: 'CRM Monitoring & Activity Validation' },
-  { time: '17:00', label: 'Business Review & Team Reinforcement' },
-  { time: '18:00', label: 'End Day Review & Planning Besok' },
+  { time: '07:30', endTime: '08:00', label: 'Business Direction & Daily Alignment' },
+  { time: '08:00', endTime: '09:00', label: 'Pipeline Monitoring & Priority Support' },
+  { time: '09:00', endTime: '10:00', label: 'Morning Support & Team Reinforcement' },
+  { time: '10:00', endTime: '11:00', label: 'Branch Coordination & Business Opportunity' },
+  { time: '11:00', endTime: '12:00', label: 'Support High Potential Customer Case' },
+  { time: '12:00', endTime: '13:00', label: 'Business Reinforcement & Team Support' },
+  { time: '13:00', endTime: '14:00', label: 'Joint Meeting & Closing Support' },
+  { time: '14:00', endTime: '15:00', label: 'Midday Monitoring & Recovery Support' },
+  { time: '15:00', endTime: '16:00', label: 'Escalation Support & Closing Assistance' },
+  { time: '16:00', endTime: '17:00', label: 'CRM Monitoring & Activity Validation' },
+  { time: '17:00', endTime: '18:00', label: 'Business Review & Team Reinforcement' },
+  { time: '18:00', endTime: '19:00', label: 'End Day Review & Planning Besok' },
 ];
 
 export function slotsForRole(role) {
@@ -72,47 +72,54 @@ const N = (key, label, placeholder = '') => ({ key, type: 'number', label, place
 const S = (key, label, options) => ({ key, type: 'select', label, options });
 const SUP = (key, label) => ({ key, type: 'user-select', label, source: 'supervisor' });
 const SUB = (key, label, multi = false) => ({ key, type: 'user-select', label, source: 'subordinate', multi });
-const LIST = (key, label, itemSchema, addLabel = 'Tambah Baris') => ({ key, type: 'list', label, itemSchema, addLabel });
+const LIST = (key, label, itemSchema, addLabel = 'Tambah Baris', resultSchema = []) =>
+  ({ key, type: 'list', label, itemSchema, addLabel, resultSchema });
+
+// Result fields ditambahkan per item saat Daily Input (actual mode)
+const RESULT_SCHEMA = [
+  S('status_aktual', 'Hasil', ['berhasil', 'tidak_berhasil', 'partial', 'reschedule']),
+  T('catatan_aktual', 'Catatan', 'Keterangan singkat'),
+];
 
 const FA_FORMS = {
   '07:30': [SUP('briefing_with', 'Briefing dengan (FWSS)'), T('daily_target', 'Target Harian', 'mis. 4 appointment'), TA('action_plan', 'Action Plan', 'Rincian rencana aksi hari ini')],
-  '08:00': [LIST('leads', 'Daftar Lead Prioritas', [T('nama', 'Nama Nasabah'), T('produk', 'Produk'), S('status', 'Status', ['cold', 'warm', 'hot', 'closing']), S('prioritas', 'Prioritas', ['rendah', 'sedang', 'tinggi'])], 'Tambah Lead')],
-  '09:00': [N('target_appointment', 'Target Appointment'), LIST('calls', 'Daftar Telepon', [T('nama', 'Nama Nasabah'), S('tujuan', 'Tujuan', ['appointment', 'follow-up', 'warm-up', 'konfirmasi'])], 'Tambah Telepon')],
-  '10:00': [N('target_prospect', 'Target Prospek Baru'), LIST('prospects', 'Daftar Prospek', [T('nama', 'Nama'), S('sumber', 'Sumber', ['referral', 'walk-in', 'cold-call', 'eks-nasabah']), T('kontak', 'Kontak')], 'Tambah Prospek')],
+  '08:00': [LIST('leads', 'Daftar Lead Prioritas', [T('nama', 'Nama Nasabah'), T('produk', 'Produk'), S('status', 'Status', ['cold', 'warm', 'hot', 'closing']), S('prioritas', 'Prioritas', ['rendah', 'sedang', 'tinggi'])], 'Tambah Lead', RESULT_SCHEMA)],
+  '09:00': [N('target_appointment', 'Target Appointment'), LIST('calls', 'Daftar Telepon', [T('nama', 'Nama Nasabah'), S('tujuan', 'Tujuan', ['appointment', 'follow-up', 'warm-up', 'konfirmasi'])], 'Tambah Telepon', RESULT_SCHEMA)],
+  '10:00': [N('target_prospect', 'Target Prospek Baru'), LIST('prospects', 'Daftar Prospek', [T('nama', 'Nama'), S('sumber', 'Sumber', ['referral', 'walk-in', 'cold-call', 'eks-nasabah']), T('kontak', 'Kontak')], 'Tambah Prospek', RESULT_SCHEMA)],
   '11:00': [T('nama_nasabah', 'Nama Nasabah'), T('lokasi', 'Lokasi Meeting'), T('produk_presentasi', 'Produk Dipresentasikan'), TA('tujuan_meeting', 'Tujuan Meeting')],
   '12:00': [T('nama_nasabah', 'Nama Nasabah'), T('jam_meeting', 'Jam Meeting Berikutnya'), TA('kelengkapan_dokumen', 'Kelengkapan Dokumen / Aplikasi')],
   '13:00': [T('pencapaian_siang', 'Pencapaian s/d Siang'), T('gap_target', 'Gap dari Target'), TA('recovery_action', 'Recovery Action')],
   '14:00': [T('nama_nasabah', 'Nama Nasabah'), T('lokasi', 'Lokasi'), T('topik_advisory', 'Topik Advisory'), TA('target_session', 'Target Sesi')],
-  '15:00': [LIST('follow_ups', 'Follow Up Closing', [T('nama', 'Nama Nasabah'), T('objection', 'Objection'), T('rencana_handling', 'Rencana Handling')], 'Tambah Follow Up')],
+  '15:00': [LIST('follow_ups', 'Follow Up Closing', [T('nama', 'Nama Nasabah'), T('objection', 'Objection'), T('rencana_handling', 'Rencana Handling')], 'Tambah Follow Up', RESULT_SCHEMA)],
   '16:00': [N('pipeline_count', 'Jumlah Pipeline di CRM'), TA('summary_update', 'Ringkasan Update CRM')],
   '17:00': [T('topik_coaching', 'Topik Coaching'), SUP('coach_oleh', 'Coach oleh (FWSS)'), TA('poin_pelajaran', 'Poin Pelajaran')],
-  '18:00': [TA('ringkasan_hari', 'Ringkasan Hari Ini'), T('priority_besok', 'Prioritas Besok'), LIST('pipeline_besok', 'Pipeline Besok', [T('nama', 'Nama Nasabah'), T('action', 'Action')], 'Tambah Pipeline')],
+  '18:00': [TA('ringkasan_hari', 'Ringkasan Hari Ini'), T('priority_besok', 'Prioritas Besok'), LIST('pipeline_besok', 'Pipeline Besok', [T('nama', 'Nama Nasabah'), T('action', 'Action')], 'Tambah Pipeline', RESULT_SCHEMA)],
 };
 
 const FWSS_FORMS = {
   '07:30': [SUB('fa_arahan', 'FA yang Diarahkan', true), T('target_tim', 'Target Tim'), TA('focus_recovery', 'Fokus Recovery')],
-  '08:00': [LIST('fa_pipeline', 'Kontrol Pipeline FA', [SUB('fa_id', 'FA'), T('status_pipeline', 'Status Pipeline'), T('tindakan', 'Tindakan')], 'Tambah FA')],
+  '08:00': [LIST('fa_pipeline', 'Kontrol Pipeline FA', [SUB('fa_id', 'FA'), T('status_pipeline', 'Status Pipeline'), T('tindakan', 'Tindakan')], 'Tambah FA', RESULT_SCHEMA)],
   '09:00': [SUB('fa_id', 'FA'), TA('recovery_plan', 'Recovery Plan'), T('target_aktivasi', 'Target Aktivasi')],
-  '10:00': [T('sumber_opportunity', 'Sumber Opportunity'), LIST('leads', 'Lead Cabang', [T('nama', 'Nama Lead'), SUB('fa_ditugaskan', 'FA Ditugaskan')], 'Tambah Lead')],
+  '10:00': [T('sumber_opportunity', 'Sumber Opportunity'), LIST('leads', 'Lead Cabang', [T('nama', 'Nama Lead'), SUB('fa_ditugaskan', 'FA Ditugaskan')], 'Tambah Lead', RESULT_SCHEMA)],
   '11:00': [SUB('fa_id', 'FA'), TA('kasus', 'Kasus'), TA('solusi', 'Solusi')],
   '12:00': [SUB('fa_id', 'FA'), T('topik_coaching', 'Topik Coaching'), T('target_recovery', 'Target Recovery')],
   '13:00': [SUB('fa_id', 'FA'), T('nama_nasabah', 'Nama Nasabah'), T('produk', 'Produk'), TA('tujuan_joint', 'Tujuan Joint Meeting')],
-  '14:00': [LIST('fa_status', 'Monitoring FA', [SUB('fa_id', 'FA'), T('pencapaian', 'Pencapaian'), T('intervensi', 'Intervensi')], 'Tambah FA')],
-  '15:00': [LIST('fa_push', 'Closing Push FA', [SUB('fa_id', 'FA'), T('target_closing', 'Target Closing'), T('support', 'Bentuk Support')], 'Tambah FA')],
+  '14:00': [LIST('fa_status', 'Monitoring FA', [SUB('fa_id', 'FA'), T('pencapaian', 'Pencapaian'), T('intervensi', 'Intervensi')], 'Tambah FA', RESULT_SCHEMA)],
+  '15:00': [LIST('fa_push', 'Closing Push FA', [SUB('fa_id', 'FA'), T('target_closing', 'Target Closing'), T('support', 'Bentuk Support')], 'Tambah FA', RESULT_SCHEMA)],
   '16:00': [SUB('fa_cek', 'FA yang Dicek', true), TA('catatan_disiplin', 'Catatan Disiplin CRM')],
   '17:00': [T('topik_clinic', 'Topik Sales Clinic'), SUB('fa_peserta', 'FA Peserta', true), TA('poin_reinforcement', 'Poin Reinforcement')],
-  '18:00': [TA('pencapaian_tim', 'Pencapaian Tim'), LIST('fa_accountability', 'Akuntabilitas FA', [SUB('fa_id', 'FA'), T('hasil', 'Hasil')], 'Tambah FA'), TA('arah_besok', 'Arah Besok')],
+  '18:00': [TA('pencapaian_tim', 'Pencapaian Tim'), LIST('fa_accountability', 'Akuntabilitas FA', [SUB('fa_id', 'FA'), T('hasil', 'Hasil')], 'Tambah FA', RESULT_SCHEMA), TA('arah_besok', 'Arah Besok')],
 };
 
 const BM_FORMS = {
   '07:30': [SUB('fwss_alignment', 'FWSS Alignment', true), TA('arah_bisnis', 'Arah Bisnis'), T('kpi_focus', 'KPI Focus')],
-  '08:00': [LIST('fwss_pipeline', 'Monitoring Pipeline FWSS', [SUB('fwss_id', 'FWSS'), T('pipeline_key', 'Pipeline Kunci'), T('support_needed', 'Support Dibutuhkan')], 'Tambah FWSS')],
+  '08:00': [LIST('fwss_pipeline', 'Monitoring Pipeline FWSS', [SUB('fwss_id', 'FWSS'), T('pipeline_key', 'Pipeline Kunci'), T('support_needed', 'Support Dibutuhkan')], 'Tambah FWSS', RESULT_SCHEMA)],
   '09:00': [SUB('target_support', 'FWSS yang Didukung'), TA('bentuk_support', 'Bentuk Support')],
   '10:00': [TA('opportunity', 'Business Opportunity'), T('koordinasi_dengan', 'Koordinasi Dengan'), TA('tindak_lanjut', 'Tindak Lanjut')],
   '11:00': [SUB('fwss_id', 'FWSS'), T('nama_nasabah', 'Nama Nasabah'), T('produk', 'Produk'), TA('bentuk_support', 'Bentuk Support')],
   '12:00': [T('topik_reinforcement', 'Topik Reinforcement'), SUB('target_fwss', 'Target FWSS', true), TA('pesan_utama', 'Pesan Utama')],
   '13:00': [SUB('fwss_id', 'FWSS'), T('nama_nasabah', 'Nama Nasabah'), TA('support_closing', 'Support Closing')],
-  '14:00': [TA('monitoring_summary', 'Ringkasan Monitoring'), LIST('fwss_recovery', 'Recovery FWSS', [SUB('fwss_id', 'FWSS'), T('gap', 'Gap'), T('support', 'Support')], 'Tambah FWSS')],
+  '14:00': [TA('monitoring_summary', 'Ringkasan Monitoring'), LIST('fwss_recovery', 'Recovery FWSS', [SUB('fwss_id', 'FWSS'), T('gap', 'Gap'), T('support', 'Support')], 'Tambah FWSS', RESULT_SCHEMA)],
   '15:00': [TA('kasus_eskalasi', 'Kasus Eskalasi'), SUB('fwss_id', 'FWSS'), TA('tindakan', 'Tindakan')],
   '16:00': [SUB('validasi_fwss', 'FWSS Divalidasi', true), TA('temuan', 'Temuan')],
   '17:00': [T('topik_review', 'Topik Review'), SUB('peserta', 'Peserta FWSS', true), TA('poin_utama', 'Poin Utama')],
@@ -142,6 +149,7 @@ import { WEEKDAYS, DEFAULT_DURATION } from '../lib/utils';
 export function emptyDaySlots(role) {
   return slotsForRole(role).map((t) => ({
     time: t.time,
+    endTime: t.endTime,
     label: t.label,
     duration: DEFAULT_DURATION,
     data: {}, // nilai field kontekstual sesuai formSchemaFor(role, time)

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Check, Zap, X as XIcon, ImagePlus, Loader2, Lock, Clock, AlertTriangle, ClipboardList } from 'lucide-react';
+import { Check, Zap, X as XIcon, ImagePlus, Loader2, Lock, Clock, AlertTriangle, ClipboardList, Save } from 'lucide-react';
 import { clsx } from '../lib/utils';
 import { uploadActivityImage } from '../lib/storage';
 import SlotFormRenderer from './SlotFormRenderer';
+import { Spinner } from './ui';
 
 const STATUS_OPTIONS = [
   { value: 'done', label: 'Done', icon: Check, color: '#22C55E' },
@@ -10,7 +11,19 @@ const STATUS_OPTIONS = [
   { value: 'not_done', label: 'Not Done', icon: XIcon, color: '#EF4444' },
 ];
 
-export default function ActivitySlot({ slot, userId, date, onChange, windowState = 'open', startLabel, endLabel, users, formSchema = [] }) {
+export default function ActivitySlot({
+  slot,
+  userId,
+  date,
+  onChange,
+  windowState = 'open',
+  startLabel,
+  endLabel,
+  users,
+  formSchema = [],
+  onSave,
+  saving = false,
+}) {
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState('');
 
@@ -18,11 +31,8 @@ export default function ActivitySlot({ slot, userId, date, onChange, windowState
   const isClosed = windowState === 'closed';
   const isUpcoming = windowState === 'upcoming';
 
-  // Saat OPEN: semua field aktif.
-  // Saat CLOSED: "Hasil Aktual" & status terkunci (tetap not_done), tapi alasan & foto AKTIF.
-  // Saat UPCOMING: semua terkunci.
   const canEditActual = isOpen;
-  const canAttach = isOpen || isClosed; // alasan/catatan & foto bukti
+  const canAttach = isOpen || isClosed;
   const hasSchema = Array.isArray(formSchema) && formSchema.length > 0;
 
   function update(patch) {
@@ -48,6 +58,9 @@ export default function ActivitySlot({ slot, userId, date, onChange, windowState
   const statusColor = STATUS_OPTIONS.find((s) => s.value === slot.activity_status)?.color;
   const accent = isClosed ? '#EF4444' : isUpcoming ? '#94A3B8' : statusColor;
 
+  // Format "07:30 – 08:00"
+  const timeLabel = slot.endTime ? `${slot.time} – ${slot.endTime}` : slot.time;
+
   return (
     <div
       className={clsx('card relative', isUpcoming && 'opacity-95')}
@@ -55,7 +68,7 @@ export default function ActivitySlot({ slot, userId, date, onChange, windowState
     >
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-baseline gap-2 min-w-0">
-          <span className="font-display font-bold text-hana-teal-700 text-base">{slot.time}</span>
+          <span className="font-display font-bold text-hana-teal-700 text-base">{timeLabel}</span>
           <span className="text-sm font-semibold text-ink leading-tight truncate">{slot.label}</span>
         </div>
         <span className="inline-flex items-center gap-1 text-[10px] text-text-muted shrink-0">
@@ -90,13 +103,15 @@ export default function ActivitySlot({ slot, userId, date, onChange, windowState
         )}
       </div>
 
-      {/* HASIL AKTUAL — terstruktur (mengikuti schema slot) */}
+      {/* HASIL AKTUAL — terstruktur (actual mode: referensi planned items) */}
       <label className="label">Hasil Aktual {canEditActual && '*'}</label>
       {hasSchema ? (
         <div className={clsx(!canEditActual && 'opacity-70 pointer-events-none')}>
           <SlotFormRenderer
+            mode="actual"
             schema={formSchema}
             value={slot.actual_data || {}}
+            plannedValue={slot.planned_data || {}}
             onChange={(actual_data) => update({ actual_data })}
             users={users}
             disabled={!canEditActual}
@@ -176,6 +191,21 @@ export default function ActivitySlot({ slot, userId, date, onChange, windowState
       {slot.image_url && isUpcoming && (
         <div className="mt-3">
           <img src={slot.image_url} alt="bukti" className="h-16 w-16 rounded-lg object-cover border border-hana-border" />
+        </div>
+      )}
+
+      {/* Per-card save button */}
+      {onSave && (
+        <div className="mt-4 flex justify-end border-t border-hana-border pt-3">
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving || isUpcoming}
+            className="btn-teal !py-2 !px-4 text-xs disabled:opacity-60"
+          >
+            {saving ? <Spinner size={13} className="text-white" /> : <Save size={13} />}
+            {saving ? 'Menyimpan...' : 'Simpan Slot'}
+          </button>
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Save, Brain, CalendarOff, Wand2 } from 'lucide-react';
+import { Trash2, Brain, CalendarOff, Wand2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import ActivitySlot from '../components/ActivitySlot';
@@ -24,18 +24,36 @@ import {
   serializeStructuredData,
 } from '../lib/utils';
 
-// Bangun slot harian dari jadwal hari tsb. planned_data = rencana (read-only),
-// actual_data = hasil aktual terstruktur (mengikuti schema slot yang sama).
-function buildSlots(daySchedule, savedActivity) {
+// Bangun slot harian dari jadwal hari tsb.
+// Pre-inisialisasi actual_data untuk list fields dengan resultSchema dari planned_data.
+function buildSlots(daySchedule, savedActivity, role) {
   const savedByTime = new Map((savedActivity?.activities || []).map((a) => [a.time, a]));
   return daySchedule.map((p) => {
     const saved = savedByTime.get(p.time) || {};
+    const plannedData = p.data || {};
+    const savedActual = saved.actual_data || {};
+
+    // Pre-populate list fields dari planned_data jika actual_data belum ada
+    const initActual = { ...savedActual };
+    if (role) {
+      const schema = formSchemaFor(role, p.time);
+      schema.forEach((f) => {
+        if (f.type === 'list' && f.resultSchema?.length > 0 && !initActual[f.key]) {
+          const plannedItems = plannedData[f.key] || [];
+          if (plannedItems.length > 0) {
+            initActual[f.key] = plannedItems.map((item) => ({ ...item }));
+          }
+        }
+      });
+    }
+
     return {
       time: p.time,
+      endTime: p.endTime,
       label: p.label,
       duration: p.duration ?? DEFAULT_DURATION,
-      planned_data: p.data || {},
-      actual_data: saved.actual_data || {},
+      planned_data: plannedData,
+      actual_data: initActual,
       actual: saved.actual || '',
       activity_status: saved.activity_status || 'not_done',
       notes: saved.notes || '',
@@ -45,21 +63,16 @@ function buildSlots(daySchedule, savedActivity) {
   });
 }
 
-// Sinkronkan teks `actual` dari actual_data terstruktur (untuk filled-check,
-// heatmap, & payload Gemini). Fallback ke actual lama bila tak ada data terstruktur.
 function syncActual(s) {
   return { ...s, actual: serializeStructuredData(s.actual_data) || s.actual || '' };
 }
 
-// Live: slot tertutup SELALU 'not_done' (tak ada aktivitas tepat waktu), walau diberi
-// alasan/foto setelahnya. Demo: time-gating dilonggarkan — hanya slot tertutup & kosong
-// yang jadi 'not_done', sehingga data dummy/late entry tetap dihormati.
 function applyGating(slots, date) {
   return slots.map((s0) => {
     const s = syncActual(s0);
     const state = slotWindowState(date, s.time, s.duration);
     if (state === 'closed') {
-      if (IS_DEMO && s.actual && s.actual.trim()) return s; // demo: hormati late entry
+      if (IS_DEMO && s.actual && s.actual.trim()) return s;
       return { ...s, activity_status: 'not_done' };
     }
     return s;
@@ -79,7 +92,9 @@ export default function DailyInput() {
   const [hasData, setHasData] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [busy, setBusy] = useState('');
+  const [busySlot, setBusySlot] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showOthers, setShowOthers] = useState(false);
 
   const autoSaveTimer = useRef(null);
   const dirty = useRef(false);
@@ -95,7 +110,7 @@ export default function DailyInput() {
           fetchSubordinates(user.id),
         ]);
         const byDay = plan?.slots ? normalizePlanByDay(plan.slots, user.role) : emptyPlanByDay(user.role);
-        const built = buildSlots(byDay[dayKey], activity);
+        const built = buildSlots(byDay[dayKey], activity, user.role);
         setSlots(built);
         setUsers({ supervisor, subordinates });
         if (activity?.activities?.length) setHasData(true);
@@ -138,6 +153,18 @@ export default function DailyInput() {
     setSlots((prev) => prev.map((s, i) => (i === idx ? next : s)));
   }
 
+  async function handleSaveSlot(idx) {
+    setBusySlot(idx);
+    setError('');
+    try {
+      await persist();
+    } catch (e) {
+      setError(e.message || 'Gagal menyimpan slot.');
+    } finally {
+      setBusySlot(null);
+    }
+  }
+
   async function handleDeleteDay() {
     setBusy('deleting');
     setError('');
@@ -145,7 +172,7 @@ export default function DailyInput() {
       await deleteDailyData(user.id, date);
       const plan = await fetchWeeklyPlan(user.id, currentWeekId());
       const byDay = plan?.slots ? normalizePlanByDay(plan.slots, user.role) : emptyPlanByDay(user.role);
-      setSlots(buildSlots(byDay[dayKey], null));
+      setSlots(buildSlots(byDay[dayKey], null, user.role));
       setHasData(false);
       setSavedAt(null);
     } catch (e) {
@@ -213,11 +240,6 @@ export default function DailyInput() {
     }
   }
 
-  async function handleSaveDraft() {
-    setBusy('saving');
-    try { await persist(); } catch (e) { setError(e.message || 'Gagal menyimpan draft.'); } finally { setBusy(''); }
-  }
-
   // Akhir pekan / tidak ada jadwal
   if (!loading && !dayKey) {
     return (
@@ -235,7 +257,14 @@ export default function DailyInput() {
 
   const now = nowDate();
   const viewSlots = applyGating(slots, date);
-  const openCount = viewSlots.filter((s) => slotWindowState(date, s.time, s.duration) === 'open').length;
+
+  // Demo: semua slot diperlakukan sebagai open (tanpa pemisahan)
+  const openSlots = IS_DEMO
+    ? viewSlots
+    : viewSlots.filter((s) => slotWindowState(date, s.time, s.duration) === 'open');
+  const otherSlots = IS_DEMO
+    ? []
+    : viewSlots.filter((s) => slotWindowState(date, s.time, s.duration) !== 'open');
 
   return (
     <Layout title="Input Aktivitas Hari Ini" back={true}>
@@ -250,7 +279,7 @@ export default function DailyInput() {
               <span className="font-semibold">{dayLabel(dayKey)}</span>
               <span className="text-text-muted"> · {formatDateID(date)} · {fmtClock(now)}</span>
             </div>
-            <span className="text-xs text-text-muted">{openCount} slot terbuka sekarang</span>
+            <span className="text-xs text-text-muted">{openSlots.length} slot terbuka sekarang</span>
           </div>
 
           {!isGeminiConfigured && (
@@ -273,35 +302,81 @@ export default function DailyInput() {
             )}
           </div>
 
-          {savedAt && <p className="text-[11px] text-text-muted -mt-1">Draft tersimpan otomatis · {savedAt.toLocaleTimeString('id-ID')}</p>}
+          {savedAt && <p className="text-[11px] text-text-muted -mt-1">Draft tersimpan · {savedAt.toLocaleTimeString('id-ID')}</p>}
 
-          <div className="grid lg:grid-cols-2 gap-4">
-            {viewSlots.map((slot, idx) => {
-              // Demo: semua slot bebas diisi (tanpa penguncian waktu).
-              const state = IS_DEMO ? 'open' : slotWindowState(date, slot.time, slot.duration);
-              const { start, end } = slotWindow(date, slot.time, slot.duration);
-              return (
-                <ActivitySlot
-                  key={slot.time}
-                  slot={slot}
-                  userId={user.id}
-                  date={date}
-                  users={users}
-                  formSchema={formSchemaFor(user.role, slot.time)}
-                  windowState={state}
-                  startLabel={fmtClock(start)}
-                  endLabel={fmtClock(end)}
-                  onChange={(next) => updateSlot(idx, next)}
-                />
-              );
-            })}
-          </div>
+          {/* Slot yang sedang terbuka */}
+          {openSlots.length > 0 ? (
+            <div className="grid lg:grid-cols-2 gap-4">
+              {openSlots.map((slot) => {
+                const idx = viewSlots.indexOf(slot);
+                const state = IS_DEMO ? 'open' : slotWindowState(date, slot.time, slot.duration);
+                const { start, end } = slotWindow(date, slot.time, slot.duration);
+                return (
+                  <ActivitySlot
+                    key={slot.time}
+                    slot={slot}
+                    userId={user.id}
+                    date={date}
+                    users={users}
+                    formSchema={formSchemaFor(user.role, slot.time)}
+                    windowState={state}
+                    startLabel={fmtClock(start)}
+                    endLabel={fmtClock(end)}
+                    onChange={(next) => updateSlot(idx, next)}
+                    onSave={() => handleSaveSlot(idx)}
+                    saving={busySlot === idx}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <div className="card text-center py-8 text-text-muted text-sm">
+              Belum ada slot yang terbuka sekarang.
+            </div>
+          )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sticky bottom-4">
-            <button onClick={handleSaveDraft} disabled={Boolean(busy)} className="btn-ghost">
-              <Save size={16} /> Simpan Draft
-            </button>
-            <button onClick={handleSubmitScore} disabled={Boolean(busy)} className="btn-pink">
+          {/* Tombol tampilkan slot lainnya */}
+          {otherSlots.length > 0 && (
+            <div>
+              <button
+                onClick={() => setShowOthers((p) => !p)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-text-secondary border border-hana-border rounded-lg hover:bg-elevated transition-colors"
+              >
+                {showOthers ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                {showOthers ? 'Sembunyikan' : `Tampilkan ${otherSlots.length} slot lainnya`}
+              </button>
+
+              {showOthers && (
+                <div className="grid lg:grid-cols-2 gap-4 mt-4">
+                  {otherSlots.map((slot) => {
+                    const idx = viewSlots.indexOf(slot);
+                    const state = slotWindowState(date, slot.time, slot.duration);
+                    const { start, end } = slotWindow(date, slot.time, slot.duration);
+                    return (
+                      <ActivitySlot
+                        key={slot.time}
+                        slot={slot}
+                        userId={user.id}
+                        date={date}
+                        users={users}
+                        formSchema={formSchemaFor(user.role, slot.time)}
+                        windowState={state}
+                        startLabel={fmtClock(start)}
+                        endLabel={fmtClock(end)}
+                        onChange={(next) => updateSlot(idx, next)}
+                        onSave={state !== 'upcoming' ? () => handleSaveSlot(idx) : undefined}
+                        saving={busySlot === idx}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Footer: hanya AI scoring */}
+          <div className="sticky bottom-4">
+            <button onClick={handleSubmitScore} disabled={Boolean(busy)} className="btn-pink w-full">
               {busy === 'scoring' ? <Spinner size={18} className="text-white" /> : <Brain size={18} />}
               {busy === 'scoring' ? 'AI sedang menilai...' : 'Submit & Minta Penilaian AI'}
             </button>

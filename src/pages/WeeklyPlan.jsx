@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, CheckCircle2, Trash2, Clock, Wand2 } from 'lucide-react';
+import { Save, CheckCircle2, Trash2, Wand2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import SlotFormRenderer from '../components/SlotFormRenderer';
@@ -9,7 +9,7 @@ import { emptyPlanByDay, emptyDaySlots, normalizePlanByDay, formSchemaFor } from
 import { fetchWeeklyPlan, upsertWeeklyPlan, fetchSubordinates, fetchUserMaybe } from '../lib/db';
 import { generateDummyWeeklyPlan } from '../lib/dummyData';
 import { IS_DEMO } from '../lib/appMode';
-import { currentWeekId, WEEKDAYS, dayKeyFromDate, MAX_DURATION, isStructuredFilled, clsx } from '../lib/utils';
+import { currentWeekId, WEEKDAYS, dayKeyFromDate, isStructuredFilled, clsx } from '../lib/utils';
 
 export default function WeeklyPlan() {
   const { user } = useAuth();
@@ -49,15 +49,9 @@ export default function WeeklyPlan() {
   const slots = planByDay[activeDay] || [];
 
   function updateSlot(idx, patch) {
-    // Durasi dibatasi maksimal MAX_DURATION (30 menit) per kegiatan.
-    const safe = { ...patch };
-    if ('duration' in safe) {
-      const d = Number(safe.duration);
-      safe.duration = Number.isFinite(d) ? Math.min(MAX_DURATION, Math.max(5, d)) : MAX_DURATION;
-    }
     setPlanByDay((prev) => ({
       ...prev,
-      [activeDay]: prev[activeDay].map((s, i) => (i === idx ? { ...s, ...safe } : s)),
+      [activeDay]: prev[activeDay].map((s, i) => (i === idx ? { ...s, ...patch } : s)),
     }));
   }
 
@@ -124,7 +118,7 @@ export default function WeeklyPlan() {
           <div className="card flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold">{currentWeekId()} · {user.role}</p>
-              <p className="text-xs text-text-muted mt-0.5">Jadwalkan aktivitas Senin–Jumat · durasi maks {MAX_DURATION} menit/kegiatan</p>
+              <p className="text-xs text-text-muted mt-0.5">Jadwalkan aktivitas Senin–Jumat</p>
               {submitted && (
                 <p className="inline-flex items-center gap-1.5 text-xs text-score-4 mt-2">
                   <CheckCircle2 size={14} /> Rencana minggu ini sudah disubmit
@@ -166,37 +160,23 @@ export default function WeeklyPlan() {
           </div>
 
           <div className="grid lg:grid-cols-2 gap-4">
-            {slots.map((slot, idx) => (
-              <div key={slot.time} className="card">
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <div className="flex items-baseline gap-2 min-w-0">
-                    <span className="font-display font-bold text-hana-teal-700">{slot.time}</span>
+            {slots.map((slot, idx) => {
+              const timeLabel = slot.endTime ? `${slot.time} – ${slot.endTime}` : slot.time;
+              return (
+                <div key={slot.time} className="card">
+                  <div className="flex items-center gap-2 mb-3 min-w-0">
+                    <span className="font-display font-bold text-hana-teal-700 shrink-0">{timeLabel}</span>
                     <span className="text-sm font-semibold leading-tight truncate">{slot.label}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Clock size={12} className="text-text-muted" />
-                    <div className="relative w-20">
-                      <input
-                        type="number"
-                        min={5}
-                        max={MAX_DURATION}
-                        step={5}
-                        className="w-full px-2 py-1.5 text-xs pr-7"
-                        value={slot.duration ?? MAX_DURATION}
-                        onChange={(e) => updateSlot(idx, { duration: Number(e.target.value) })}
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-text-muted">mnt</span>
-                    </div>
-                  </div>
+                  <SlotFormRenderer
+                    schema={formSchemaFor(user.role, slot.time)}
+                    value={slot.data || {}}
+                    onChange={(data) => updateSlot(idx, { data })}
+                    users={users}
+                  />
                 </div>
-                <SlotFormRenderer
-                  schema={formSchemaFor(user.role, slot.time)}
-                  value={slot.data || {}}
-                  onChange={(data) => updateSlot(idx, { data })}
-                  users={users}
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 sm:justify-end sticky bottom-4">
