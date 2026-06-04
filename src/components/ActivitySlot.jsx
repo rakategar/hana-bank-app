@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Check, Zap, X as XIcon, ImagePlus, Loader2, Lock, Clock, AlertTriangle } from 'lucide-react';
+import { Check, Zap, X as XIcon, ImagePlus, Loader2, Lock, Clock, AlertTriangle, ClipboardList } from 'lucide-react';
 import { clsx } from '../lib/utils';
 import { uploadActivityImage } from '../lib/storage';
+import SlotFormRenderer from './SlotFormRenderer';
 
 const STATUS_OPTIONS = [
   { value: 'done', label: 'Done', icon: Check, color: '#22C55E' },
@@ -9,7 +10,7 @@ const STATUS_OPTIONS = [
   { value: 'not_done', label: 'Not Done', icon: XIcon, color: '#EF4444' },
 ];
 
-export default function ActivitySlot({ slot, userId, date, onChange, windowState = 'open', startLabel, endLabel }) {
+export default function ActivitySlot({ slot, userId, date, onChange, windowState = 'open', startLabel, endLabel, users, formSchema = [] }) {
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState('');
 
@@ -22,6 +23,7 @@ export default function ActivitySlot({ slot, userId, date, onChange, windowState
   // Saat UPCOMING: semua terkunci.
   const canEditActual = isOpen;
   const canAttach = isOpen || isClosed; // alasan/catatan & foto bukti
+  const hasSchema = Array.isArray(formSchema) && formSchema.length > 0;
 
   function update(patch) {
     onChange({ ...slot, ...patch });
@@ -74,21 +76,42 @@ export default function ActivitySlot({ slot, userId, date, onChange, windowState
         </div>
       )}
 
-      {slot.planned && (
-        <div className="mb-3 text-xs text-text-secondary bg-elevated rounded-lg px-3 py-2 border border-hana-border">
-          <span className="font-medium text-text-secondary">Rencana: </span>{slot.planned}
-        </div>
-      )}
+      {/* Panel RENCANA (read-only) — dari Weekly Plan */}
+      <div className="mb-3 rounded-lg bg-elevated border border-hana-border px-3 py-2.5">
+        <p className="flex items-center gap-1.5 text-[11px] font-semibold text-text-secondary mb-1.5">
+          <ClipboardList size={13} /> Rencana
+        </p>
+        {hasSchema ? (
+          <SlotFormRenderer schema={formSchema} value={slot.planned_data || {}} users={users} readOnly />
+        ) : slot.planned ? (
+          <p className="text-xs text-ink">{slot.planned}</p>
+        ) : (
+          <p className="text-xs text-text-muted italic">Belum ada rencana untuk slot ini.</p>
+        )}
+      </div>
 
+      {/* HASIL AKTUAL — terstruktur (mengikuti schema slot) */}
       <label className="label">Hasil Aktual {canEditActual && '*'}</label>
-      <textarea
-        rows={2}
-        disabled={!canEditActual}
-        value={slot.actual || ''}
-        onChange={(e) => update({ actual: e.target.value })}
-        placeholder={canEditActual ? 'Apa yang benar-benar dilakukan di slot ini?' : '—'}
-        className="w-full text-sm px-3 py-2 resize-y disabled:bg-elevated disabled:cursor-not-allowed"
-      />
+      {hasSchema ? (
+        <div className={clsx(!canEditActual && 'opacity-70 pointer-events-none')}>
+          <SlotFormRenderer
+            schema={formSchema}
+            value={slot.actual_data || {}}
+            onChange={(actual_data) => update({ actual_data })}
+            users={users}
+            disabled={!canEditActual}
+          />
+        </div>
+      ) : (
+        <textarea
+          rows={2}
+          disabled={!canEditActual}
+          value={slot.actual || ''}
+          onChange={(e) => update({ actual: e.target.value })}
+          placeholder={canEditActual ? 'Apa yang benar-benar dilakukan di slot ini?' : '—'}
+          className="w-full text-sm px-3 py-2 resize-y disabled:bg-elevated disabled:cursor-not-allowed"
+        />
+      )}
 
       <div className="mt-3">
         <label className="label">Status</label>

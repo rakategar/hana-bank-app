@@ -1,5 +1,5 @@
 import { rubricToText } from '../constants/scoringRubric';
-import { ROLE_LABELS } from './utils';
+import { ROLE_LABELS, serializeStructuredData } from './utils';
 
 const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const MODEL = 'gemini-3.5-flash';
@@ -59,15 +59,17 @@ function parseJson(raw) {
 
 // ── 1. SCORING aktivitas harian ───────────────────────────
 
-export async function scoreDailyActivities({ role, activities }) {
+export async function scoreDailyActivities({ role, activities, usersById = null }) {
   const roleLabel = ROLE_LABELS[role] || role;
   const rubric = rubricToText(role);
   const activitiesJSON = JSON.stringify(
     activities.map((a) => ({
       time: a.time,
       label: a.label,
-      planned: a.planned || '',
-      actual: a.actual || '',
+      // planned & actual berisi data form terstruktur (di-serialize jadi teks ringkas).
+      // Fallback ke string lama bila slot belum memakai schema kontekstual.
+      planned: serializeStructuredData(a.planned_data, usersById) || a.planned || '',
+      actual: serializeStructuredData(a.actual_data, usersById) || a.actual || '',
       status: a.activity_status || 'not_done',
       notes: a.notes || '',
     })),
@@ -81,7 +83,7 @@ Rubrik scoring per aktivitas:
 
 ${rubric}
 
-Evaluasi aktivitas berikut secara objektif berdasarkan rubrik. Jika "actual" kosong atau "status" not_done, beri score rendah. Output HANYA JSON valid dengan struktur:
+Evaluasi aktivitas berikut secara objektif berdasarkan rubrik. Tiap aktivitas punya "planned" (rencana terstruktur yang disusun user sebelumnya) dan "actual" (eksekusi nyata). Bandingkan keduanya: semakin kecil gap antara rencana dan realisasi, semakin tinggi skor. Jika "actual" kosong atau "status" not_done, beri score rendah (1). Output HANYA JSON valid dengan struktur:
 {
   "scores": [{
     "time": "07:30",

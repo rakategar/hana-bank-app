@@ -5,13 +5,15 @@ import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import ActivitySlot from '../components/ActivitySlot';
 import { Modal, FullSpinner, ErrorBox, Spinner } from '../components/ui';
-import { emptyPlanByDay, normalizePlanByDay } from '../constants/timeSlots';
+import { emptyPlanByDay, normalizePlanByDay, formSchemaFor } from '../constants/timeSlots';
 import {
   fetchWeeklyPlan,
   fetchDailyActivity,
   upsertDailyActivity,
   deleteDailyData,
   upsertScore,
+  fetchSubordinates,
+  fetchUserMaybe,
 } from '../lib/db';
 import { scoreDailyActivities, isGeminiConfigured } from '../lib/gemini';
 import { generateDummyActivities, generateDummyScores } from '../lib/dummyData';
@@ -19,19 +21,21 @@ import { IS_DEMO } from '../lib/appMode';
 import {
   todayISO, currentWeekId, dayKeyFromDate, dayLabel, formatDateID,
   slotWindowState, slotWindow, fmtClock, nowDate, DEFAULT_DURATION,
+  serializeStructuredData,
 } from '../lib/utils';
 
-// Bangun slot harian dari jadwal hari tsb (planned + duration)
+// Bangun slot harian dari jadwal hari tsb. planned_data = rencana (read-only),
+// actual_data = hasil aktual terstruktur (mengikuti schema slot yang sama).
 function buildSlots(daySchedule, savedActivity) {
   const savedByTime = new Map((savedActivity?.activities || []).map((a) => [a.time, a]));
   return daySchedule.map((p) => {
     const saved = savedByTime.get(p.time) || {};
-    const plannedParts = [p.prospect, p.location, p.objective].filter(Boolean).join(' · ');
     return {
       time: p.time,
       label: p.label,
-      planned: plannedParts,
       duration: p.duration ?? DEFAULT_DURATION,
+      planned_data: p.data || {},
+      actual_data: saved.actual_data || {},
       actual: saved.actual || '',
       activity_status: saved.activity_status || 'not_done',
       notes: saved.notes || '',
@@ -41,22 +45,21 @@ function buildSlots(daySchedule, savedActivity) {
   });
 }
 
+// Sinkronkan teks `actual` dari actual_data terstruktur (untuk filled-check,
+// heatmap, & payload Gemini). Fallback ke actual lama bila tak ada data terstruktur.
+function syncActual(s) {
+  return { ...s, actual: serializeStructuredData(s.actual_data) || s.actual || '' };
+}
+
 // Live: slot tertutup SELALU 'not_done' (tak ada aktivitas tepat waktu), walau diberi
 // alasan/foto setelahnya. Demo: time-gating dilonggarkan — hanya slot tertutup & kosong
 // yang jadi 'not_done', sehingga data dummy/late entry tetap dihormati.
 function applyGating(slots, date) {
-  if (IS_DEMO) {
-    return slots.map((s) => {
-      const state = slotWindowState(date, s.time, s.duration);
-      if (state === 'closed' && !(s.actual && s.actual.trim())) {
-        return { ...s, activity_status: 'not_done' };
-      }
-      return s;
-    });
-  }
-  return slots.map((s) => {
+  return slots.map((s0) => {
+    const s = syncActual(s0);
     const state = slotWindowState(date, s.time, s.duration);
     if (state === 'closed') {
+      if (IS_DEMO && s.actual && s.actual.trim()) return s; // demo: hormati late entry
       return { ...s, activity_status: 'not_done' };
     }
     return s;
@@ -70,6 +73,7 @@ export default function DailyInput() {
   const dayKey = dayKeyFromDate(nowDate());
 
   const [slots, setSlots] = useState([]);
+  const [users, setUsers] = useState({ supervisor: null, subordinates: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [hasData, setHasData] = useState(false);
@@ -84,13 +88,16 @@ export default function DailyInput() {
     if (!dayKey) { setLoading(false); return; }
     (async () => {
       try {
-        const [plan, activity] = await Promise.all([
+        const [plan, activity, supervisor, subordinates] = await Promise.all([
           fetchWeeklyPlan(user.id, currentWeekId()),
           fetchDailyActivity(user.id, date),
+          user.supervisor_id ? fetchUserMaybe(user.supervisor_id) : Promise.resolve(null),
+          fetchSubordinates(user.id),
         ]);
         const byDay = plan?.slots ? normalizePlanByDay(plan.slots, user.role) : emptyPlanByDay(user.role);
         const built = buildSlots(byDay[dayKey], activity);
         setSlots(built);
+        setUsers({ supervisor, subordinates });
         if (activity?.activities?.length) setHasData(true);
       } catch (e) {
         setError(e.message || 'Gagal memuat input harian.');
@@ -99,7 +106,7 @@ export default function DailyInput() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.id, date, dayKey]);
+  }, [user.id, user.supervisor_id, date, dayKey]);
 
   const persist = useCallback(
     async (overrideSlots, opts = {}) => {
@@ -158,7 +165,12 @@ export default function DailyInput() {
       const metaByTime = new Map(slots.map((s) => [s.time, s]));
       const withMeta = activities.map((a) => {
         const m = metaByTime.get(a.time) || {};
-        return { ...a, planned: m.planned || '', duration: m.duration ?? DEFAULT_DURATION };
+        return {
+          ...a,
+          planned_data: m.planned_data || {},
+          actual_data: m.actual_data || {},
+          duration: m.duration ?? DEFAULT_DURATION,
+        };
       });
       setSlots(withMeta);
       await upsertDailyActivity({
@@ -187,7 +199,10 @@ export default function DailyInput() {
       const daily = await upsertDailyActivity({
         userId: user.id, role: user.role, date, activities: gated, status: 'submitted', submit: true,
       });
-      const result = await scoreDailyActivities({ role: user.role, activities: gated });
+      const usersById = Object.fromEntries(
+        [users.supervisor, ...users.subordinates].filter(Boolean).map((u) => [u.id, u.name])
+      );
+      const result = await scoreDailyActivities({ role: user.role, activities: gated, usersById });
       await upsertScore({ userId: user.id, role: user.role, date, dailyActivityId: daily?.id, result });
       await upsertDailyActivity({ userId: user.id, role: user.role, date, activities: gated, status: 'scored' });
       navigate('/score-result', { state: { submitted: true } });
@@ -271,6 +286,8 @@ export default function DailyInput() {
                   slot={slot}
                   userId={user.id}
                   date={date}
+                  users={users}
+                  formSchema={formSchemaFor(user.role, slot.time)}
                   windowState={state}
                   startLabel={fmtClock(start)}
                   endLabel={fmtClock(end)}

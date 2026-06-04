@@ -162,6 +162,41 @@ export function slotWindowState(dateStr, time, durationMin, now = nowDate()) {
   return 'open';
 }
 
+// ── Serialisasi data form terstruktur ─────────────────────
+// Mengubah object { key: value | [items] } menjadi teks ringkas untuk
+// ditampilkan & dikirim ke Gemini. usersById (opsional) memetakan id user
+// → nama agar user-select tampil sebagai nama, bukan id mentah.
+export function serializeStructuredData(data, usersById = null) {
+  if (!data || typeof data !== 'object') return '';
+  const resolve = (v) => (usersById && usersById[v] ? usersById[v] : v);
+  const parts = [];
+  for (const [key, v] of Object.entries(data)) {
+    if (v == null || v === '') continue;
+    const label = key.replace(/_/g, ' ');
+    if (Array.isArray(v)) {
+      if (v.length === 0) continue;
+      const items = v
+        .map((item) => {
+          if (item && typeof item === 'object') {
+            return Object.values(item).map(resolve).filter((x) => x != null && x !== '').join(', ');
+          }
+          return resolve(item);
+        })
+        .filter(Boolean);
+      if (items.length) parts.push(`${label}: [${items.join(' | ')}]`);
+    } else {
+      parts.push(`${label}: ${resolve(v)}`);
+    }
+  }
+  return parts.join('; ');
+}
+
+// Apakah object data form punya minimal satu nilai terisi.
+export function isStructuredFilled(data) {
+  if (!data || typeof data !== 'object') return false;
+  return Object.values(data).some((v) => (Array.isArray(v) ? v.length > 0 : v != null && v !== ''));
+}
+
 // ── Misc ──────────────────────────────────────────────────
 
 export function initials(name = '') {

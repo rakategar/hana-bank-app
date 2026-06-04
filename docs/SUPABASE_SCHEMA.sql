@@ -21,8 +21,10 @@ CREATE TABLE weekly_plans (
   role         TEXT NOT NULL,
   submitted_at TIMESTAMPTZ,
   is_locked    BOOLEAN DEFAULT false,
-  slots        JSONB NOT NULL DEFAULT '[]',
-  -- slot: { time, label, prospect, location, objective }
+  slots        JSONB NOT NULL DEFAULT '{}',
+  -- struktur per-hari: { monday:[...slot], tuesday:[...], ... friday:[...] }
+  -- slot: { time, label, duration, data:{ ...field kontekstual per slot } }
+  --   data mengikuti formSchemaFor(role, time) di src/constants/timeSlots.js
   created_at   TIMESTAMPTZ DEFAULT now(),
   updated_at   TIMESTAMPTZ DEFAULT now(),
   UNIQUE(user_id, week_id)
@@ -38,7 +40,9 @@ CREATE TABLE daily_activities (
   status       TEXT DEFAULT 'draft' CHECK (status IN ('draft','submitted','scored')),
   submitted_at TIMESTAMPTZ,
   activities   JSONB NOT NULL DEFAULT '[]',
-  -- activity: { time, label, planned, actual,
+  -- activity: { time, label, duration,
+  --             planned_data:{...}, actual_data:{...} (mengikuti formSchemaFor),
+  --             actual (teks ringkas hasil serialisasi actual_data),
   --             activity_status(done|partial|not_done),
   --             notes, image_path, image_url }
   created_at   TIMESTAMPTZ DEFAULT now(),

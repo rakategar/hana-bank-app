@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { Save, CheckCircle2, Trash2, Clock, Wand2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
+import SlotFormRenderer from '../components/SlotFormRenderer';
 import { FullSpinner, ErrorBox, Spinner } from '../components/ui';
-import { emptyPlanByDay, emptyDaySlots, normalizePlanByDay } from '../constants/timeSlots';
-import { fetchWeeklyPlan, upsertWeeklyPlan } from '../lib/db';
+import { emptyPlanByDay, emptyDaySlots, normalizePlanByDay, formSchemaFor } from '../constants/timeSlots';
+import { fetchWeeklyPlan, upsertWeeklyPlan, fetchSubordinates, fetchUserMaybe } from '../lib/db';
 import { generateDummyWeeklyPlan } from '../lib/dummyData';
 import { IS_DEMO } from '../lib/appMode';
-import { currentWeekId, WEEKDAYS, dayKeyFromDate, MAX_DURATION, clsx } from '../lib/utils';
+import { currentWeekId, WEEKDAYS, dayKeyFromDate, MAX_DURATION, isStructuredFilled, clsx } from '../lib/utils';
 
 export default function WeeklyPlan() {
   const { user } = useAuth();
@@ -16,6 +17,7 @@ export default function WeeklyPlan() {
 
   const [planByDay, setPlanByDay] = useState(() => emptyPlanByDay(user.role));
   const [activeDay, setActiveDay] = useState(() => dayKeyFromDate(new Date()) || 'monday');
+  const [users, setUsers] = useState({ supervisor: null, subordinates: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState('');
@@ -25,11 +27,16 @@ export default function WeeklyPlan() {
   useEffect(() => {
     (async () => {
       try {
-        const existing = await fetchWeeklyPlan(user.id, currentWeekId());
+        const [existing, supervisor, subordinates] = await Promise.all([
+          fetchWeeklyPlan(user.id, currentWeekId()),
+          user.supervisor_id ? fetchUserMaybe(user.supervisor_id) : Promise.resolve(null),
+          fetchSubordinates(user.id),
+        ]);
         if (existing?.slots) {
           setPlanByDay(normalizePlanByDay(existing.slots, user.role));
           setSubmitted(Boolean(existing.submitted_at));
         }
+        setUsers({ supervisor, subordinates });
       } catch (e) {
         setError(e.message || 'Gagal memuat rencana.');
       } finally {
@@ -37,7 +44,7 @@ export default function WeeklyPlan() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.id]);
+  }, [user.id, user.supervisor_id]);
 
   const slots = planByDay[activeDay] || [];
 
@@ -139,7 +146,7 @@ export default function WeeklyPlan() {
           {/* Tab hari Senin–Jumat */}
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {WEEKDAYS.map((w) => {
-              const dayFilled = (planByDay[w.key] || []).some((s) => s.prospect || s.objective);
+              const dayFilled = (planByDay[w.key] || []).some((s) => isStructuredFilled(s.data));
               return (
                 <button
                   key={w.key}
@@ -166,41 +173,28 @@ export default function WeeklyPlan() {
                     <span className="font-display font-bold text-hana-teal-700">{slot.time}</span>
                     <span className="text-sm font-semibold leading-tight truncate">{slot.label}</span>
                   </div>
-                </div>
-                <div className="grid gap-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="label">Nasabah / Prospek</label>
-                      <input className="w-full px-3 py-2 text-sm" value={slot.prospect} onChange={(e) => updateSlot(idx, { prospect: e.target.value })} placeholder="Nama prospek" />
-                    </div>
-                    <div>
-                      <label className="label">Lokasi / Cabang</label>
-                      <input className="w-full px-3 py-2 text-sm" value={slot.location} onChange={(e) => updateSlot(idx, { location: e.target.value })} placeholder="Lokasi" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-[1fr,auto] gap-3">
-                    <div>
-                      <label className="label">Objective Spesifik</label>
-                      <textarea rows={2} className="w-full px-3 py-2 text-sm resize-y" value={slot.objective} onChange={(e) => updateSlot(idx, { objective: e.target.value })} placeholder="Target/objektif slot ini" />
-                    </div>
-                    <div className="w-24">
-                      <label className="label flex items-center gap-1"><Clock size={12} /> Durasi</label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min={5}
-                          max={MAX_DURATION}
-                          step={5}
-                          className="w-full px-3 py-2 text-sm pr-9"
-                          value={slot.duration ?? MAX_DURATION}
-                          onChange={(e) => updateSlot(idx, { duration: Number(e.target.value) })}
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-text-muted">mnt</span>
-                      </div>
-                      <p className="text-[10px] text-text-muted mt-1">maks {MAX_DURATION}m</p>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Clock size={12} className="text-text-muted" />
+                    <div className="relative w-20">
+                      <input
+                        type="number"
+                        min={5}
+                        max={MAX_DURATION}
+                        step={5}
+                        className="w-full px-2 py-1.5 text-xs pr-7"
+                        value={slot.duration ?? MAX_DURATION}
+                        onChange={(e) => updateSlot(idx, { duration: Number(e.target.value) })}
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-text-muted">mnt</span>
                     </div>
                   </div>
                 </div>
+                <SlotFormRenderer
+                  schema={formSchemaFor(user.role, slot.time)}
+                  value={slot.data || {}}
+                  onChange={(data) => updateSlot(idx, { data })}
+                  users={users}
+                />
               </div>
             ))}
           </div>
