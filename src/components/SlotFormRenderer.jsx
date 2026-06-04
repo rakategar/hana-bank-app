@@ -65,41 +65,53 @@ export default function SlotFormRenderer({
     );
   }
 
-  // ── EDITABLE ───────────────────────────────────────────
-  return (
-    <div className="grid gap-3">
-      {schema.map((field) => {
-        // Actual mode: list dengan resultSchema + ada planned items → ActualListField
-        if (
-          mode === 'actual' &&
-          field.type === 'list' &&
-          field.resultSchema?.length > 0 &&
-          Array.isArray(plannedValue?.[field.key]) &&
-          plannedValue[field.key].length > 0
-        ) {
+  // ── ACTUAL MODE ────────────────────────────────────────
+  // Hanya field list ber-resultSchema yang dirender (mengisi hasil per item rencana).
+  // Field non-list TIDAK dirender — rencananya sudah tampil read-only di panel "Rencana".
+  if (mode === 'actual') {
+    const resultFields = schema.filter((f) => f.type === 'list' && f.resultSchema?.length > 0);
+    if (resultFields.length === 0) return null;
+    return (
+      <div className="grid gap-3">
+        {resultFields.map((field) => {
+          const plannedItems = Array.isArray(plannedValue?.[field.key]) ? plannedValue[field.key] : [];
+          if (plannedItems.length === 0) {
+            return (
+              <div key={field.key}>
+                <label className="label">{field.label}</label>
+                <p className="text-xs text-text-muted italic">Tidak ada {field.label.toLowerCase()} yang direncanakan.</p>
+              </div>
+            );
+          }
           return (
             <ActualListField
               key={field.key}
               field={field}
               value={value?.[field.key]}
-              plannedItems={plannedValue[field.key]}
+              plannedItems={plannedItems}
               onChange={(v) => setField(field.key, v)}
               users={users}
               disabled={disabled}
             />
           );
-        }
-        return (
-          <FieldEditor
-            key={field.key}
-            field={field}
-            value={value?.[field.key]}
-            onChange={(v) => setField(field.key, v)}
-            users={users}
-            disabled={disabled}
-          />
-        );
-      })}
+        })}
+      </div>
+    );
+  }
+
+  // ── EDITABLE (plan mode) ───────────────────────────────
+  return (
+    <div className="grid gap-3">
+      {schema.map((field) => (
+        <FieldEditor
+          key={field.key}
+          field={field}
+          value={value?.[field.key]}
+          onChange={(v) => setField(field.key, v)}
+          users={users}
+          disabled={disabled}
+        />
+      ))}
     </div>
   );
 }

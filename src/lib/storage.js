@@ -30,16 +30,39 @@ export async function compressImage(file, maxKB = 500) {
   });
 }
 
-// Upload gambar bukti aktivitas ke Supabase Storage
+function detectKind(file) {
+  const type = (file.type || '').toLowerCase();
+  const name = (file.name || '').toLowerCase();
+  if (type === 'application/pdf' || name.endsWith('.pdf')) return 'pdf';
+  if (type.startsWith('image/') || /\.(png|jpe?g)$/.test(name)) return 'image';
+  return null;
+}
+
+// Upload bukti aktivitas (gambar atau PDF) ke Supabase Storage.
+// Gambar (png/jpg/jpeg) dikompres otomatis ke <=500KB; PDF diunggah apa adanya.
 export async function uploadActivityImage({ userId, date, timeSlot, file }) {
-  const compressed = await compressImage(file);
+  const kind = detectKind(file);
+  if (!kind) throw new Error('Format tidak didukung. Gunakan PNG, JPG, JPEG, atau PDF.');
+
   const uuid = crypto.randomUUID();
   const timeForPath = timeSlot.replace(':', '-'); // 07:30 → 07-30
-  const path = `${userId}/${date}/${timeForPath}_${uuid}.jpg`;
+
+  let body, contentType, ext;
+  if (kind === 'image') {
+    body = await compressImage(file);
+    contentType = 'image/jpeg';
+    ext = 'jpg';
+  } else {
+    body = file; // PDF tidak dikompres
+    contentType = 'application/pdf';
+    ext = 'pdf';
+  }
+
+  const path = `${userId}/${date}/${timeForPath}_${uuid}.${ext}`;
 
   const { error } = await supabase.storage
     .from(STORAGE_BUCKET)
-    .upload(path, compressed, { contentType: 'image/jpeg', upsert: true });
+    .upload(path, body, { contentType, upsert: true });
 
   if (error) throw error;
 
@@ -55,8 +78,8 @@ export async function uploadActivityImage({ userId, date, timeSlot, file }) {
     time_slot: timeSlot,
     storage_path: path,
     public_url: signed?.signedUrl || null,
-    file_size_kb: Math.round(compressed.size / 1024),
+    file_size_kb: Math.round(body.size / 1024),
   });
 
-  return { path, url: signed?.signedUrl || null };
+  return { path, url: signed?.signedUrl || null, kind };
 }

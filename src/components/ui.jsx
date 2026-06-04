@@ -1,4 +1,5 @@
-import { Loader2, X } from 'lucide-react';
+import { useEffect } from 'react';
+import { Loader2, X, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { clsx } from '../lib/utils';
 
 export function Spinner({ className = '', size = 20 }) {
@@ -43,6 +44,35 @@ export function Modal({ open, onClose, title, children, footer, maxWidth = 'max-
         </div>
         <div className="p-5">{children}</div>
         {footer && <div className="px-5 py-4 border-t border-hana-border sticky bottom-0 bg-white">{footer}</div>}
+      </div>
+    </div>
+  );
+}
+
+// Notifikasi pojok kanan atas. toast = { type: 'success'|'error', message } | null.
+export function Toast({ toast, onClose, duration = 3000 }) {
+  useEffect(() => {
+    if (!toast) return undefined;
+    const t = setTimeout(onClose, duration);
+    return () => clearTimeout(t);
+  }, [toast, onClose, duration]);
+
+  if (!toast) return null;
+  const isError = toast.type === 'error';
+  const Icon = isError ? AlertTriangle : CheckCircle2;
+  return (
+    <div className="fixed top-4 right-4 z-[60] animate-slide-down">
+      <div
+        className={clsx(
+          'flex items-start gap-2.5 rounded-lg border px-4 py-3 shadow-elevated max-w-sm',
+          isError ? 'bg-score-1/10 border-score-1/40 text-score-1' : 'bg-score-4/10 border-score-4/40 text-score-4'
+        )}
+      >
+        <Icon size={18} className="mt-0.5 shrink-0" />
+        <p className="text-sm font-medium">{toast.message}</p>
+        <button onClick={onClose} className="ml-1 text-current/70 hover:text-current" aria-label="Tutup">
+          <X size={16} />
+        </button>
       </div>
     </div>
   );

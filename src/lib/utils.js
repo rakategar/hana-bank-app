@@ -117,10 +117,6 @@ export function completionColor(ratio) {
 }
 
 // ── Penjadwalan harian (Senin–Jumat) ──────────────────────
-// Durasi default & maksimal tergantung mode (live: 30m, demo: longgar).
-// Diimpor lalu di-re-export agar tersedia sebagai binding lokal (dipakai slotWindow).
-export const GRACE_MINUTES = 30; // toleransi setelah durasi
-
 export const WEEKDAYS = [
   { key: 'monday', label: 'Senin', dow: 1 },
   { key: 'tuesday', label: 'Selasa', dow: 2 },
@@ -144,21 +140,29 @@ export function fmtClock(d) {
   return `${h}:${m}`;
 }
 
-// Jendela waktu sebuah slot: [start, start + durasi + grace]
-export function slotWindow(dateStr, time, durationMin = DEFAULT_DURATION) {
-  const [h, m] = String(time).split(':').map(Number);
-  const start = new Date(`${dateStr}T00:00:00`);
-  start.setHours(h, m, 0, 0);
-  const end = new Date(start.getTime() + (Number(durationMin || 0) + GRACE_MINUTES) * 60000);
+// Jendela waktu sebuah slot = blok jamnya: [start, endTime).
+// endTime = jam slot berikutnya (mis. 08:00 untuk slot 07:30). Tanpa endTime,
+// fallback ke start + DEFAULT_DURATION.
+export function slotWindow(dateStr, startTime, endTime) {
+  const mk = (t) => {
+    const [h, m] = String(t).split(':').map(Number);
+    const d = new Date(`${dateStr}T00:00:00`);
+    d.setHours(h, m, 0, 0);
+    return d;
+  };
+  const start = mk(startTime);
+  const end = endTime ? mk(endTime) : new Date(start.getTime() + DEFAULT_DURATION * 60000);
   return { start, end };
 }
 
-// 'upcoming' (belum waktunya) | 'open' (bisa input) | 'closed' (terlewat)
-export function slotWindowState(dateStr, time, durationMin, now = nowDate()) {
-  const { start, end } = slotWindow(dateStr, time, durationMin);
+// 'upcoming' (belum waktunya) | 'open' (bisa input) | 'closed' (terlewat).
+// Interval setengah-terbuka [start, end): di jam end tepat, slot sudah closed
+// dan slot berikutnya open — sehingga hanya satu blok yang open pada satu waktu.
+export function slotWindowState(dateStr, startTime, endTime, now = nowDate()) {
+  const { start, end } = slotWindow(dateStr, startTime, endTime);
   const t = new Date(now).getTime();
   if (t < start.getTime()) return 'upcoming';
-  if (t > end.getTime()) return 'closed';
+  if (t >= end.getTime()) return 'closed';
   return 'open';
 }
 

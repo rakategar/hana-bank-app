@@ -4,7 +4,7 @@ import { Trash2, Brain, CalendarOff, Wand2, ChevronDown, ChevronUp } from 'lucid
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import ActivitySlot from '../components/ActivitySlot';
-import { Modal, FullSpinner, ErrorBox, Spinner } from '../components/ui';
+import { Modal, FullSpinner, ErrorBox, Spinner, Toast } from '../components/ui';
 import { emptyPlanByDay, normalizePlanByDay, formSchemaFor } from '../constants/timeSlots';
 import {
   fetchWeeklyPlan,
@@ -21,7 +21,7 @@ import { IS_DEMO } from '../lib/appMode';
 import {
   todayISO, currentWeekId, dayKeyFromDate, dayLabel, formatDateID,
   slotWindowState, slotWindow, fmtClock, nowDate, DEFAULT_DURATION,
-  serializeStructuredData,
+  serializeStructuredData, isStructuredFilled,
 } from '../lib/utils';
 
 // Bangun slot harian dari jadwal hari tsb.
@@ -70,13 +70,46 @@ function syncActual(s) {
 function applyGating(slots, date) {
   return slots.map((s0) => {
     const s = syncActual(s0);
-    const state = slotWindowState(date, s.time, s.duration);
+    const state = slotWindowState(date, s.time, s.endTime);
     if (state === 'closed') {
-      if (IS_DEMO && s.actual && s.actual.trim()) return s;
+      // Slot yang sudah diselesaikan tepat waktu (done/partial) dipertahankan.
+      if (s.activity_status === 'done' || s.activity_status === 'partial') return s;
       return { ...s, activity_status: 'not_done' };
     }
     return s;
   });
+}
+
+// Slot dianggap "terisi" bila user sudah menandai selesai, mengisi hasil per item,
+// atau menulis catatan/alasan.
+function slotEngaged(s) {
+  return (
+    s.activity_status === 'done' ||
+    s.activity_status === 'partial' ||
+    isStructuredFilled(s.actual_data) ||
+    (s.notes && s.notes.trim()) ||
+    (s.actual && s.actual.trim())
+  );
+}
+
+// Validasi sebelum simpan slot. Mengembalikan pesan error atau null bila valid.
+function validateSlot(s, formSchema) {
+  if (s.activity_status === 'done' || s.activity_status === 'partial') {
+    const listFields = (formSchema || []).filter((f) => f.type === 'list' && f.resultSchema?.length > 0);
+    for (const f of listFields) {
+      const planned = Array.isArray(s.planned_data?.[f.key]) ? s.planned_data[f.key] : [];
+      if (planned.length === 0) continue;
+      const rows = Array.isArray(s.actual_data?.[f.key]) ? s.actual_data[f.key] : [];
+      const allFilled = planned.every((_, i) => rows[i] && rows[i].status_aktual);
+      if (!allFilled) return `Lengkapi hasil tiap item pada "${f.label}".`;
+    }
+    return null;
+  }
+  if (s.activity_status === 'not_done') {
+    if (!s.notes || !s.notes.trim()) return 'Isi alasan terlebih dahulu jika slot tidak selesai.';
+    return null;
+  }
+  return 'Pilih status slot terlebih dahulu (Done / Partial / Not Done).';
 }
 
 export default function DailyInput() {
@@ -95,6 +128,7 @@ export default function DailyInput() {
   const [busySlot, setBusySlot] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showOthers, setShowOthers] = useState(false);
+  const [toast, setToast] = useState(null);
 
   const autoSaveTimer = useRef(null);
   const dirty = useRef(false);
@@ -154,12 +188,19 @@ export default function DailyInput() {
   }
 
   async function handleSaveSlot(idx) {
+    const slot = slots[idx];
+    const err = validateSlot(slot, formSchemaFor(user.role, slot.time));
+    if (err) {
+      setToast({ type: 'error', message: err });
+      return;
+    }
     setBusySlot(idx);
     setError('');
     try {
       await persist();
+      setToast({ type: 'success', message: `Slot ${slot.time} tersimpan.` });
     } catch (e) {
-      setError(e.message || 'Gagal menyimpan slot.');
+      setToast({ type: 'error', message: e.message || 'Gagal menyimpan slot.' });
     } finally {
       setBusySlot(null);
     }
@@ -215,9 +256,9 @@ export default function DailyInput() {
 
   async function handleSubmitScore() {
     const gated = applyGating(slots, date);
-    const filled = gated.filter((s) => s.actual && s.actual.trim()).length;
+    const filled = gated.filter(slotEngaged).length;
     if (filled === 0) {
-      setError('Belum ada aktivitas terisi pada slot yang terbuka.');
+      setError('Belum ada aktivitas terisi.');
       return;
     }
     setBusy('scoring');
@@ -258,8 +299,8 @@ export default function DailyInput() {
   const now = nowDate();
   const viewSlots = applyGating(slots, date);
 
-  const openSlots = viewSlots.filter((s) => slotWindowState(date, s.time, s.duration) === 'open');
-  const otherSlots = viewSlots.filter((s) => slotWindowState(date, s.time, s.duration) !== 'open');
+  const openSlots = viewSlots.filter((s) => slotWindowState(date, s.time, s.endTime) === 'open');
+  const otherSlots = viewSlots.filter((s) => slotWindowState(date, s.time, s.endTime) !== 'open');
 
   return (
     <Layout title="Input Aktivitas Hari Ini" back={true}>
@@ -304,8 +345,8 @@ export default function DailyInput() {
             <div className="grid lg:grid-cols-2 gap-4">
               {openSlots.map((slot) => {
                 const idx = viewSlots.indexOf(slot);
-                const state = slotWindowState(date, slot.time, slot.duration);
-                const { start, end } = slotWindow(date, slot.time, slot.duration);
+                const state = slotWindowState(date, slot.time, slot.endTime);
+                const { start, end } = slotWindow(date, slot.time, slot.endTime);
                 return (
                   <ActivitySlot
                     key={slot.time}
@@ -345,8 +386,8 @@ export default function DailyInput() {
                 <div className="grid lg:grid-cols-2 gap-4 mt-4">
                   {otherSlots.map((slot) => {
                     const idx = viewSlots.indexOf(slot);
-                    const state = slotWindowState(date, slot.time, slot.duration);
-                    const { start, end } = slotWindow(date, slot.time, slot.duration);
+                    const state = slotWindowState(date, slot.time, slot.endTime);
+                    const { start, end } = slotWindow(date, slot.time, slot.endTime);
                     return (
                       <ActivitySlot
                         key={slot.time}
@@ -396,6 +437,8 @@ export default function DailyInput() {
           Menghapus aktivitas harian <b>dan</b> skor AI hari ini. Rencana mingguan tidak terpengaruh.
         </p>
       </Modal>
+
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </Layout>
   );
 }

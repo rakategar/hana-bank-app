@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Zap, X as XIcon, ImagePlus, Loader2, Lock, Clock, AlertTriangle, ClipboardList, Save } from 'lucide-react';
+import { Check, Zap, X as XIcon, ImagePlus, Loader2, Lock, AlertTriangle, CheckCircle2, ClipboardList, Save, FileText } from 'lucide-react';
 import { clsx } from '../lib/utils';
 import { uploadActivityImage } from '../lib/storage';
 import SlotFormRenderer from './SlotFormRenderer';
@@ -31,9 +31,14 @@ export default function ActivitySlot({
   const isClosed = windowState === 'closed';
   const isUpcoming = windowState === 'upcoming';
 
-  const canEditActual = isOpen;
-  const canAttach = isOpen || isClosed;
+  const isCompleted = slot.activity_status === 'done' || slot.activity_status === 'partial';
+  const canEditActual = isOpen; // hasil per item + tombol status
+  // Alasan & bukti hanya relevan bila belum selesai (slot terlewat / sedang berjalan).
+  const showReasonEvidence = !isCompleted && (isOpen || isClosed);
+
   const hasSchema = Array.isArray(formSchema) && formSchema.length > 0;
+  const hasActualFields = formSchema.some((f) => f.type === 'list' && f.resultSchema?.length > 0);
+  const isPdf = (slot.image_path || '').toLowerCase().endsWith('.pdf');
 
   function update(patch) {
     onChange({ ...slot, ...patch });
@@ -56,7 +61,7 @@ export default function ActivitySlot({
   }
 
   const statusColor = STATUS_OPTIONS.find((s) => s.value === slot.activity_status)?.color;
-  const accent = isClosed ? '#EF4444' : isUpcoming ? '#94A3B8' : statusColor;
+  const accent = isCompleted ? statusColor : isClosed ? '#EF4444' : isUpcoming ? '#94A3B8' : statusColor;
 
   // Format "07:30 – 08:00"
   const timeLabel = slot.endTime ? `${slot.time} – ${slot.endTime}` : slot.time;
@@ -71,23 +76,24 @@ export default function ActivitySlot({
           <span className="font-display font-bold text-hana-teal-700 text-base">{timeLabel}</span>
           <span className="text-sm font-semibold text-ink leading-tight truncate">{slot.label}</span>
         </div>
-        <span className="inline-flex items-center gap-1 text-[10px] text-text-muted shrink-0">
-          <Clock size={11} /> {slot.duration}m
-        </span>
       </div>
 
       {/* Banner status jendela waktu */}
-      {isUpcoming && (
+      {isUpcoming ? (
         <div className="mb-3 flex items-center gap-2 text-xs rounded-lg bg-elevated border border-hana-border px-3 py-2 text-text-secondary">
           <Lock size={14} /> Belum waktunya — terbuka pukul <b>{startLabel}</b>
         </div>
-      )}
-      {isClosed && (
+      ) : isCompleted ? (
+        <div className="mb-3 flex items-center gap-2 text-xs rounded-lg bg-score-4/10 border border-score-4/30 px-3 py-2 text-score-4">
+          <CheckCircle2 size={14} className="shrink-0" />
+          <span>Slot berhasil diselesaikan{slot.activity_status === 'partial' ? ' (sebagian)' : ''}.</span>
+        </div>
+      ) : isClosed ? (
         <div className="mb-3 flex items-start gap-2 text-xs rounded-lg bg-score-1/10 border border-score-1/30 px-3 py-2 text-score-1">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          <span>Slot tertutup (tutup {endLabel}) — tercatat <b>tidak selesai</b>. Anda tetap dapat memberi alasan &amp; bukti foto di bawah.</span>
+          <span>Slot tertutup (tutup {endLabel}) — tercatat <b>tidak selesai</b>. Anda tetap dapat memberi alasan &amp; bukti di bawah.</span>
         </div>
-      )}
+      ) : null}
 
       {/* Panel RENCANA (read-only) — dari Weekly Plan */}
       <div className="mb-3 rounded-lg bg-elevated border border-hana-border px-3 py-2.5">
@@ -103,30 +109,35 @@ export default function ActivitySlot({
         )}
       </div>
 
-      {/* HASIL AKTUAL — terstruktur (actual mode: referensi planned items) */}
-      <label className="label">Hasil Aktual {canEditActual && '*'}</label>
-      {hasSchema ? (
-        <div className={clsx(!canEditActual && 'opacity-70 pointer-events-none')}>
-          <SlotFormRenderer
-            mode="actual"
-            schema={formSchema}
-            value={slot.actual_data || {}}
-            plannedValue={slot.planned_data || {}}
-            onChange={(actual_data) => update({ actual_data })}
-            users={users}
+      {/* HASIL AKTUAL — hanya untuk slot dengan item rencana (list). Slot non-list cukup status. */}
+      {hasActualFields ? (
+        <>
+          <label className="label">Hasil per Item {canEditActual && '*'}</label>
+          <div className={clsx(!canEditActual && 'opacity-70 pointer-events-none')}>
+            <SlotFormRenderer
+              mode="actual"
+              schema={formSchema}
+              value={slot.actual_data || {}}
+              plannedValue={slot.planned_data || {}}
+              onChange={(actual_data) => update({ actual_data })}
+              users={users}
+              disabled={!canEditActual}
+            />
+          </div>
+        </>
+      ) : !hasSchema ? (
+        <>
+          <label className="label">Hasil Aktual {canEditActual && '*'}</label>
+          <textarea
+            rows={2}
             disabled={!canEditActual}
+            value={slot.actual || ''}
+            onChange={(e) => update({ actual: e.target.value })}
+            placeholder={canEditActual ? 'Apa yang benar-benar dilakukan di slot ini?' : '—'}
+            className="w-full text-sm px-3 py-2 resize-y disabled:bg-elevated disabled:cursor-not-allowed"
           />
-        </div>
-      ) : (
-        <textarea
-          rows={2}
-          disabled={!canEditActual}
-          value={slot.actual || ''}
-          onChange={(e) => update({ actual: e.target.value })}
-          placeholder={canEditActual ? 'Apa yang benar-benar dilakukan di slot ini?' : '—'}
-          className="w-full text-sm px-3 py-2 resize-y disabled:bg-elevated disabled:cursor-not-allowed"
-        />
-      )}
+        </>
+      ) : null}
 
       <div className="mt-3">
         <label className="label">Status</label>
@@ -150,47 +161,73 @@ export default function ActivitySlot({
             );
           })}
         </div>
-        {isClosed && (
+        {isClosed && !isCompleted && (
           <p className="text-[10px] text-text-muted mt-1">Status terkunci sebagai "Not Done" karena slot sudah lewat.</p>
         )}
       </div>
 
-      <div className="mt-3">
-        <label className="label">{isClosed ? 'Alasan tidak mengisi tepat waktu' : 'Catatan (opsional)'}</label>
-        <textarea
-          rows={isClosed ? 2 : 1}
-          disabled={!canAttach}
-          value={slot.notes || ''}
-          onChange={(e) => update({ notes: e.target.value })}
-          placeholder={canAttach ? (isClosed ? 'Jelaskan kenapa slot ini terlewat...' : 'Catatan tambahan...') : '—'}
-          className="w-full text-sm px-3 py-2 resize-y disabled:bg-elevated disabled:cursor-not-allowed"
-        />
-      </div>
+      {showReasonEvidence && (
+        <>
+          <div className="mt-3">
+            <label className="label">{isClosed ? 'Alasan tidak mengisi tepat waktu' : 'Catatan (opsional)'}</label>
+            <textarea
+              rows={isClosed ? 2 : 1}
+              value={slot.notes || ''}
+              onChange={(e) => update({ notes: e.target.value })}
+              placeholder={isClosed ? 'Jelaskan kenapa slot ini terlewat...' : 'Catatan tambahan...'}
+              className="w-full text-sm px-3 py-2 resize-y"
+            />
+          </div>
 
-      {canAttach && (
-        <div className="mt-3">
-          <label className="label">{isClosed ? 'Bukti Foto (pendukung alasan)' : 'Bukti Foto (maks 500KB setelah kompresi)'}</label>
-          {slot.image_url ? (
-            <div className="flex items-center gap-3">
-              <img src={slot.image_url} alt="bukti" className="h-16 w-16 rounded-lg object-cover border border-hana-border" />
-              <button type="button" onClick={() => update({ image_path: null, image_url: null })} className="text-xs text-score-1 hover:underline">
-                Hapus foto
-              </button>
-            </div>
-          ) : (
-            <label className="inline-flex items-center gap-2 cursor-pointer btn-ghost !py-2 !px-3 text-xs w-fit">
-              {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
-              {uploading ? 'Mengupload...' : 'Upload Foto'}
-              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} disabled={uploading} />
-            </label>
-          )}
-          {uploadErr && <p className="text-xs text-score-1 mt-1">{uploadErr}</p>}
-        </div>
+          <div className="mt-3">
+            <label className="label">{isClosed ? 'Bukti (pendukung alasan)' : 'Bukti (foto/PDF, auto-kompres)'}</label>
+            {slot.image_url ? (
+              isPdf ? (
+                <div className="flex items-center gap-3">
+                  <a href={slot.image_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs text-hana-teal-700 hover:underline">
+                    <FileText size={16} /> Lihat dokumen (PDF)
+                  </a>
+                  <button type="button" onClick={() => update({ image_path: null, image_url: null })} className="text-xs text-score-1 hover:underline">
+                    Hapus
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <img src={slot.image_url} alt="bukti" className="h-16 w-16 rounded-lg object-cover border border-hana-border" />
+                  <button type="button" onClick={() => update({ image_path: null, image_url: null })} className="text-xs text-score-1 hover:underline">
+                    Hapus
+                  </button>
+                </div>
+              )
+            ) : (
+              <label className="inline-flex items-center gap-2 cursor-pointer btn-ghost !py-2 !px-3 text-xs w-fit">
+                {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
+                {uploading ? 'Mengupload...' : 'Upload File'}
+                <input
+                  type="file"
+                  accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
+                  className="hidden"
+                  onChange={handleFile}
+                  disabled={uploading}
+                />
+              </label>
+            )}
+            {uploadErr && <p className="text-xs text-score-1 mt-1">{uploadErr}</p>}
+          </div>
+        </>
       )}
 
-      {slot.image_url && isUpcoming && (
+      {/* Bukti tetap tampil read-only saat slot sudah selesai */}
+      {isCompleted && slot.image_url && (
         <div className="mt-3">
-          <img src={slot.image_url} alt="bukti" className="h-16 w-16 rounded-lg object-cover border border-hana-border" />
+          <label className="label">Bukti</label>
+          {isPdf ? (
+            <a href={slot.image_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs text-hana-teal-700 hover:underline">
+              <FileText size={16} /> Lihat dokumen (PDF)
+            </a>
+          ) : (
+            <img src={slot.image_url} alt="bukti" className="h-16 w-16 rounded-lg object-cover border border-hana-border" />
+          )}
         </div>
       )}
 
