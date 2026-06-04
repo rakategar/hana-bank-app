@@ -258,13 +258,8 @@ export default function DailyInput() {
   const now = nowDate();
   const viewSlots = applyGating(slots, date);
 
-  // Demo: semua slot diperlakukan sebagai open (tanpa pemisahan)
-  const openSlots = IS_DEMO
-    ? viewSlots
-    : viewSlots.filter((s) => slotWindowState(date, s.time, s.duration) === 'open');
-  const otherSlots = IS_DEMO
-    ? []
-    : viewSlots.filter((s) => slotWindowState(date, s.time, s.duration) !== 'open');
+  const openSlots = viewSlots.filter((s) => slotWindowState(date, s.time, s.duration) === 'open');
+  const otherSlots = viewSlots.filter((s) => slotWindowState(date, s.time, s.duration) !== 'open');
 
   return (
     <Layout title="Input Aktivitas Hari Ini" back={true}>
@@ -309,7 +304,7 @@ export default function DailyInput() {
             <div className="grid lg:grid-cols-2 gap-4">
               {openSlots.map((slot) => {
                 const idx = viewSlots.indexOf(slot);
-                const state = IS_DEMO ? 'open' : slotWindowState(date, slot.time, slot.duration);
+                const state = slotWindowState(date, slot.time, slot.duration);
                 const { start, end } = slotWindow(date, slot.time, slot.duration);
                 return (
                   <ActivitySlot
