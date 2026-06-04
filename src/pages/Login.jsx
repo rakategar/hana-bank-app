@@ -2,89 +2,115 @@ import { ShieldCheck } from 'lucide-react';
 import { SignIn } from '@clerk/react';
 import { IS_DEMO } from '../lib/appMode';
 import DemoLogin from './DemoLogin';
-import logo from '/hana-bank-logo.png';
 
-// Tampilan Clerk disesuaikan dengan brand (teal) — Google-only diatur di dashboard Clerk.
+const logo = '/hana-bank-logo.png';
+
 const clerkAppearance = {
   variables: {
     colorPrimary: '#04B292',
     colorText: '#1F2933',
     colorBackground: '#FFFFFF',
-    borderRadius: '0.625rem',
-    fontFamily: '"DM Sans", sans-serif',
+    borderRadius: '0.5rem',
+    fontFamily: '"Plus Jakarta Sans", sans-serif',
   },
   elements: {
     rootBox: 'w-full',
-    card: 'shadow-none border-0 bg-transparent',
+    card: 'shadow-none border-0 bg-transparent p-0',
     headerTitle: 'font-display',
-    socialButtonsBlockButton:
-      'border-hana-border hover:bg-elevated text-ink font-medium',
+    socialButtonsBlockButton: 'border-hana-border hover:bg-elevated text-ink font-medium',
     footer: 'hidden',
   },
 };
 
+function BrandHeader() {
+  return (
+    <div className="flex items-center gap-3">
+      <img src={logo} alt="Bank Hana" className="h-10 w-10" />
+      <div className="leading-tight">
+        <p className="font-display text-xl font-bold text-ink">ICU Class</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-hana-teal-700">Bank Hana</p>
+      </div>
+    </div>
+  );
+}
+
 export default function Login() {
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-2">
-      {/* Brand panel */}
-      <div className="relative hidden lg:flex flex-col justify-between p-12 bg-sidebar text-white overflow-hidden">
-        <div className="absolute -top-24 -right-24 h-80 w-80 rounded-full bg-hana-teal-500/20 blur-3xl" />
-        <div className="absolute bottom-0 -left-20 h-72 w-72 rounded-full bg-hana-pink-500/10 blur-3xl" />
-        <div className="relative flex items-center gap-3">
-          <img src={logo} alt="Bank Hana" className="h-11 w-11 bg-white rounded-xl p-1.5" />
-          <div>
-            <p className="font-display text-2xl font-extrabold leading-none">ICU Class</p>
-            <p className="text-xs text-white/60">Bank Hana</p>
+    <div className="relative min-h-screen overflow-hidden bg-charcoal">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(4,178,146,0.12)_0%,transparent_30%,rgba(230,37,96,0.08)_100%)]" />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.28]"
+        style={{
+          backgroundImage:
+            'linear-gradient(#dbe5f1 1px, transparent 1px), linear-gradient(90deg, #dbe5f1 1px, transparent 1px)',
+          backgroundSize: '44px 44px',
+        }}
+      />
+
+      <main className="relative mx-auto grid min-h-[calc(100vh-3.25rem)] max-w-6xl items-center gap-10 px-5 py-8 lg:grid-cols-[0.92fr_1.08fr]">
+        <section className="hidden lg:block">
+          <div className="mb-4 flex items-center gap-3">
+            <img src={logo} alt="Bank Hana" className="h-6 w-6" />
+            <p className="text-xs font-bold uppercase tracking-[0.22em]">
+              <span className="text-ink">ICU Class</span>{' '}
+              <span className="text-hana-teal-700">Bank Hana</span>
+            </p>
           </div>
-        </div>
-        <div className="relative">
-          <h1 className="font-display text-4xl font-extrabold leading-tight text-white">
-            Intensive Control<br />&amp; Upgrading
+          <h1 className="max-w-xl font-display text-5xl font-extrabold leading-[1.04] text-ink">
+            Kontrol eksekusi sales harian dalam satu sistem kerja.
           </h1>
-          <p className="text-white/70 mt-3 max-w-md">
-            Field Execution System untuk tracking aktivitas harian, scoring AI, dan
-            monitoring performa tim sales lapangan secara berjenjang.
+          <p className="mt-5 max-w-xl text-base leading-relaxed text-text-secondary">
+            Rencana mingguan, input aktivitas, scoring AI, monitoring atasan, dan tindak lanjut performa dibuat terstruktur untuk FA, FWSS, BM, dan RH.
           </p>
-          <div className="flex gap-2 mt-6 flex-wrap">
-            {['Financial Advisor', 'FWSS', 'Branch Manager', 'Regional Head'].map((r) => (
-              <span key={r} className="px-3 py-1 rounded-full bg-white/10 text-xs font-medium">{r}</span>
+
+          <div className="mt-8 grid max-w-xl grid-cols-2 gap-3">
+            {[
+              ['Weekly Plan', 'Aktivitas tersusun per hari kerja'],
+              ['Daily Input', 'Realisasi dicatat per slot waktu'],
+              ['AI Scoring', 'Evaluasi objektif berbasis rubrik'],
+              ['Supervisor Notes', 'Arahan dan action plan berjenjang'],
+            ].map(([title, desc]) => (
+              <div key={title} className="rounded-2xl border border-white/80 bg-white/75 p-4 shadow-card backdrop-blur-xl">
+                <p className="text-sm font-bold text-ink">{title}</p>
+                <p className="mt-1 text-xs leading-relaxed text-text-muted">{desc}</p>
+              </div>
             ))}
           </div>
-        </div>
-        <p className="relative text-[11px] text-white/40">v4.0 · Bank Hana © 2026</p>
-      </div>
+        </section>
 
-      {/* Auth panel */}
-      <div className="flex flex-col bg-charcoal min-h-screen lg:min-h-0">
-        <div className="flex-1 w-full max-w-md mx-auto px-5 py-10 flex flex-col justify-center">
-          <div className="lg:hidden flex flex-col items-center text-center mb-6">
-            <img src={logo} alt="Bank Hana" className="h-14 w-14 mb-2" />
-            <h1 className="font-display text-2xl font-extrabold">ICU CLASS</h1>
-            <p className="text-hana-teal-600 font-display font-bold text-sm">BANK HANA</p>
+        <section className="w-full">
+          <div className="mb-6 flex justify-center lg:hidden">
+            <BrandHeader />
           </div>
 
-          {IS_DEMO ? (
-            <DemoLogin />
-          ) : (
-            <>
-              <div className="mb-5">
-                <h2 className="font-display text-2xl font-bold">Masuk ke Akun Anda</h2>
-                <p className="text-sm text-text-secondary mt-1">
-                  Masuk atau daftar menggunakan akun Google Anda untuk melanjutkan.
+          <div className="rounded-[28px] border border-white/80 bg-white/80 p-5 shadow-elevated backdrop-blur-2xl sm:p-7">
+            {IS_DEMO ? (
+              <DemoLogin />
+            ) : (
+              <>
+                <div className="mb-5">
+                  <h2 className="font-display text-3xl font-bold leading-none text-ink">Masuk</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+                    Gunakan akun Google yang terdaftar untuk mengakses dashboard ICU Class.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/80 bg-white/70 p-3 shadow-card">
+                  <SignIn appearance={clerkAppearance} routing="hash" signUpUrl="#/sign-up" />
+                </div>
+
+                <p className="mt-5 flex items-center justify-center gap-1.5 text-[11px] font-medium text-text-muted">
+                  <ShieldCheck size={13} /> Autentikasi aman oleh Clerk
                 </p>
-              </div>
+              </>
+            )}
+          </div>
+        </section>
+      </main>
 
-              <div className="card">
-                <SignIn appearance={clerkAppearance} routing="hash" signUpUrl="#/sign-up" />
-              </div>
-
-              <p className="flex items-center gap-1.5 text-[11px] text-text-muted mt-6 justify-center">
-                <ShieldCheck size={13} /> Autentikasi aman oleh Clerk
-              </p>
-            </>
-          )}
-        </div>
-      </div>
+      <footer className="relative pb-5 text-center text-[11px] text-text-muted">
+        Bank Hana internal system - v4.0
+      </footer>
     </div>
   );
 }

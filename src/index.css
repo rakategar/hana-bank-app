@@ -17,6 +17,19 @@
     @apply bg-charcoal text-ink font-sans antialiased;
     margin: 0;
     -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      linear-gradient(135deg, rgba(4, 178, 146, 0.1) 0%, transparent 34%),
+      linear-gradient(215deg, rgba(230, 37, 96, 0.08) 0%, transparent 30%),
+      linear-gradient(180deg, #f7faff 0%, #eef3fb 100%);
   }
 
   h1,
@@ -26,7 +39,31 @@
     @apply font-display text-ink;
   }
 
-  /* Scrollbar (light) */
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  textarea,
+  input,
+  select {
+    @apply bg-white/90 border border-hana-border rounded-lg text-ink placeholder:text-text-muted;
+    @apply focus:outline-none focus:border-hana-teal-500 focus:shadow-focus;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  }
+
+  textarea:disabled,
+  input:disabled,
+  select:disabled {
+    @apply bg-elevated text-text-muted cursor-not-allowed;
+  }
+
+  ::selection {
+    @apply bg-hana-teal-100 text-hana-teal-800;
+  }
+
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -44,47 +81,54 @@
     background: #94a3b8;
     background-clip: content-box;
   }
-
-  textarea,
-  input,
-  select {
-    @apply bg-white border border-hana-border rounded-lg text-ink placeholder:text-text-muted;
-    @apply focus:outline-none focus:border-hana-teal-500 focus:shadow-focus;
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 font-semibold text-sm;
-    @apply transition-all disabled:opacity-50 disabled:cursor-not-allowed select-none;
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-bold;
+    @apply transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed select-none;
+    @apply focus:outline-none focus-visible:shadow-focus;
   }
   .btn-teal {
-    @apply btn bg-hana-teal-500 text-white shadow-sm hover:bg-hana-teal-600;
+    @apply btn bg-hana-teal-600 text-white shadow-card hover:bg-hana-teal-700 active:translate-y-px;
   }
   .btn-pink {
-    @apply btn bg-hana-pink-500 text-white shadow-sm hover:bg-hana-pink-600;
+    @apply btn bg-hana-pink-500 text-white shadow-card hover:bg-hana-pink-600 active:translate-y-px;
   }
   .btn-ghost {
-    @apply btn bg-white text-text-secondary border border-hana-border hover:bg-elevated hover:text-ink;
+    @apply btn bg-white/80 text-text-secondary border border-hana-border hover:bg-white hover:text-ink hover:shadow-card;
+  }
+  .btn-soft {
+    @apply btn bg-hana-teal-50 text-hana-teal-700 border border-hana-teal-100 hover:bg-hana-teal-100;
   }
   .card {
-    @apply bg-white border border-hana-border rounded-xl p-4 shadow-card;
+    @apply bg-white/90 border border-white/80 rounded-2xl p-4 shadow-card backdrop-blur-xl;
+  }
+  .panel {
+    @apply bg-white/90 border border-white/80 rounded-2xl shadow-card backdrop-blur-xl;
   }
   .label {
-    @apply block text-xs font-medium text-text-secondary mb-1.5;
+    @apply block text-xs font-semibold text-text-secondary mb-1.5;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none;
+  }
+  .badge-neutral {
+    @apply badge border-hana-border bg-elevated text-text-secondary;
+  }
+  .badge-teal {
+    @apply badge border-hana-teal-100 bg-hana-teal-50 text-hana-teal-700;
   }
   .skeleton {
     background: linear-gradient(90deg, #eef2f7 25%, #e2e8f0 50%, #eef2f7 75%);
     background-size: 200% 100%;
     @apply animate-shimmer rounded-lg;
   }
-  /* Sidebar nav item (desktop) */
   .nav-item {
-    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors;
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors;
     @apply text-white/70 hover:text-white hover:bg-white/10;
   }
   .nav-item-active {
-    @apply bg-white/15 text-white;
+    @apply bg-white/15 text-white shadow-sm;
   }
 }

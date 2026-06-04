@@ -17,25 +17,24 @@ const AVATAR_BG = {
 export default function UserCard({ user, onClick }) {
   return (
     <button
+      onMouseDown={(event) => event.preventDefault()}
       onClick={() => onClick(user)}
-      className="card text-left hover:border-hana-teal-500 hover:shadow-elevated transition-all group focus:outline-none focus:shadow-focus"
+      className="group appearance-none rounded-xl border border-white/70 bg-white/70 p-3 text-left shadow-card outline-none ring-0 backdrop-blur transition-all hover:border-hana-teal-300 hover:bg-white/90 hover:shadow-raised focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 active:outline-none active:ring-0"
     >
       <div className="flex items-center gap-3">
         <div
           className={clsx(
-            'h-12 w-12 rounded-full grid place-items-center font-display font-bold shrink-0',
+            'grid h-10 w-10 shrink-0 place-items-center rounded-lg font-display text-sm font-bold',
             AVATAR_BG[user.role] || 'bg-elevated text-ink'
           )}
         >
           {initials(user.name)}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-sm text-ink truncate group-hover:text-hana-teal-700">{user.name}</p>
-          <p className="text-xs text-text-muted truncate">{user.branch}</p>
+          <p className="truncate text-sm font-bold text-ink group-hover:text-hana-teal-700">{user.name}</p>
+          <p className="truncate text-xs text-text-muted">{user.branch}</p>
         </div>
-      </div>
-      <div className="mt-3">
-        <span className={clsx('inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold border', ROLE_STYLES[user.role])}>
+        <span className={clsx('shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold', ROLE_STYLES[user.role])}>
           {user.role}
         </span>
       </div>

@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogIn } from 'lucide-react';
+import { KeyRound, UsersRound } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchAllUsers } from '../lib/db';
 import { isSupabaseConfigured } from '../lib/supabase';
 import UserCard from '../components/UserCard';
-import { FullSpinner, ErrorBox } from '../components/ui';
+import { ErrorBox } from '../components/ui';
+import ManualLoginForm from '../components/login/ManualLoginForm';
+import UnderlineTabs from '../components/login/UnderlineTabs';
+import UserCardSkeletonGrid from '../components/login/UserCardSkeletonGrid';
 
 const DEMO_PASSWORD = 'icu2026';
 
@@ -21,6 +24,10 @@ const FALLBACK_USERS = [
 ];
 
 const ROLE_ORDER = { RH: 0, BM: 1, FWSS: 2, FA: 3 };
+const LOGIN_TABS = [
+  { value: 'demo', label: 'Mode Demo', icon: UsersRound },
+  { value: 'manual', label: 'Login Manual', icon: KeyRound },
+];
 
 // Login demo: grid 8 user (one-click) + form manual. Dipakai saat VITE_APP_MODE=demo.
 export default function DemoLogin() {
@@ -31,6 +38,7 @@ export default function DemoLogin() {
   const [error, setError] = useState('');
   const [manual, setManual] = useState({ username: '', password: '' });
   const [manualErr, setManualErr] = useState('');
+  const [activeTab, setActiveTab] = useState('demo');
 
   useEffect(() => {
     (async () => {
@@ -72,39 +80,36 @@ export default function DemoLogin() {
   return (
     <>
       <div className="mb-5">
-        <h2 className="font-display text-2xl font-bold">Masuk (Mode Demo)</h2>
-        <p className="text-sm text-text-secondary mt-1">Klik salah satu kartu untuk langsung masuk.</p>
+        <h2 className="font-display text-2xl font-extrabold leading-none text-ink">Masuk (Mode Demo)</h2>
+        <p className="mt-1 text-sm text-text-secondary">
+          {activeTab === 'demo' ? 'Pilih user untuk langsung masuk.' : 'Masuk manual memakai ID dan password demo.'}
+        </p>
       </div>
 
       {error && <div className="mb-4"><ErrorBox>{error}</ErrorBox></div>}
 
+      <UnderlineTabs tabs={LOGIN_TABS} activeValue={activeTab} onChange={setActiveTab} />
+
       {loading ? (
-        <FullSpinner label="Memuat daftar user..." />
+        <UserCardSkeletonGrid />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3">
-            {sorted.map((u) => (
-              <UserCard key={u.id} user={u} onClick={doLogin} />
-            ))}
+          <div className="min-h-[292px]">
+            {activeTab === 'demo' ? (
+              <div key="demo-panel" className="animate-fade-in-up grid h-full max-h-[430px] grid-cols-1 content-start gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
+                {sorted.map((u) => (
+                  <UserCard key={u.id} user={u} onClick={doLogin} />
+                ))}
+              </div>
+            ) : (
+              <ManualLoginForm
+                credentials={manual}
+                error={manualErr}
+                onSubmit={handleManual}
+                onChange={(patch) => setManual((current) => ({ ...current, ...patch }))}
+              />
+            )}
           </div>
-
-          <details className="mt-6 group">
-            <summary className="cursor-pointer text-sm text-text-secondary hover:text-ink list-none">
-              <span className="underline underline-offset-4">Login manual (username + password)</span>
-            </summary>
-            <form onSubmit={handleManual} className="card mt-3 space-y-3">
-              <div>
-                <label className="label">Username / ID</label>
-                <input className="w-full px-3 py-2 text-sm" placeholder="fa_001" value={manual.username} onChange={(e) => setManual((m) => ({ ...m, username: e.target.value }))} />
-              </div>
-              <div>
-                <label className="label">Password</label>
-                <input type="password" className="w-full px-3 py-2 text-sm" placeholder="icu2026" value={manual.password} onChange={(e) => setManual((m) => ({ ...m, password: e.target.value }))} />
-              </div>
-              {manualErr && <p className="text-xs text-score-1">{manualErr}</p>}
-              <button type="submit" className="btn-teal w-full"><LogIn size={16} /> Masuk</button>
-            </form>
-          </details>
         </>
       )}
     </>
