@@ -30,7 +30,7 @@ export default function FADashboard() {
           </div>
 
           <TodayStatusCard activity={activity} score={score} totalSlots={totalSlots} />
-          <ActivityWatch userId={user.id} />
+          <ActivityWatch userId={user.id} role={user.role} />
 
           <PlanDailyStatus plan={plan} activity={activity} score={score} />
 

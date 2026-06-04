@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Bot, AlertTriangle, Trophy, Flag } from 'lucide-react';
+import { Bot, AlertTriangle, Trophy, Flag, FileDown, Presentation, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import Layout from '../../components/Layout';
 import ScoreBadge from '../../components/ScoreBadge';
 import WarningModal from './WarningModal';
 import { PerformancePill } from '../../components/summary';
 import { FullSpinner, ErrorBox, Spinner } from '../../components/ui';
-import { fetchAllUsers, fetchScore, fetchSummaryFor } from '../../lib/db';
+import { fetchAllUsers, fetchScore, fetchSummaryFor, fetchDailyActivity } from '../../lib/db';
 import { summarizeForRh } from '../../lib/gemini';
-import { todayISO, clsx } from '../../lib/utils';
+import { exportUserDetailPDF, exportOverallPPT } from '../../lib/reports';
+import { todayISO, formatDateID, clsx } from '../../lib/utils';
 
 const URGENCY_COLOR = { high: '#EF4444', medium: '#F97316', low: '#3B82F6' };
 
@@ -19,6 +20,10 @@ export default function RHSummary() {
   const [error, setError] = useState('');
   const [users, setUsers] = useState([]);
   const [result, setResult] = useState(null);
+  const [teamScored, setTeamScored] = useState([]);
+  const [date, setDate] = useState(todayISO());
+  const [exportingId, setExportingId] = useState(null);
+  const [pptBusy, setPptBusy] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
   const [preselect, setPreselect] = useState([]);
 
@@ -42,7 +47,7 @@ export default function RHSummary() {
       const team = users;
       const scored = await Promise.all(
         team.map(async (u) => {
-          const s = await fetchScore(u.id, todayISO());
+          const s = await fetchScore(u.id, date);
           return {
             user_id: u.id,
             name: u.name,
@@ -54,11 +59,12 @@ export default function RHSummary() {
           };
         })
       );
+      setTeamScored(scored);
       // sertakan summary BM jika ada
       const bm = team.find((u) => u.role === 'BM');
       let bmSummary = null;
       if (bm) {
-        const row = await fetchSummaryFor({ supervisorId: bm.id, targetUserId: team.find((u) => u.role === 'FWSS')?.id });
+        const row = await fetchSummaryFor({ supervisorId: bm.id, targetUserId: team.find((u) => u.role === 'FWSS')?.id, date });
         bmSummary = row?.summary_data || null;
       }
       const res = await summarizeForRh({ allData: { team: scored, bm_summary: bmSummary } });
@@ -75,6 +81,34 @@ export default function RHSummary() {
     setShowWarning(true);
   }
 
+  async function handleExportPdf(u) {
+    setExportingId(u.id);
+    setError('');
+    try {
+      const [activity, score] = await Promise.all([
+        fetchDailyActivity(u.id, date),
+        fetchScore(u.id, date),
+      ]);
+      await exportUserDetailPDF({ user: u, date, activity, score });
+    } catch (e) {
+      setError(e.message || 'Gagal mengekspor PDF.');
+    } finally {
+      setExportingId(null);
+    }
+  }
+
+  async function handleExportPpt() {
+    setPptBusy(true);
+    setError('');
+    try {
+      await exportOverallPPT({ rhName: user.name, date, team: teamScored, result });
+    } catch (e) {
+      setError(e.message || 'Gagal membuat laporan PPT.');
+    } finally {
+      setPptBusy(false);
+    }
+  }
+
   return (
     <Layout title="Summary Keseluruhan" back="/dashboard/rh">
       {loading ? (
@@ -82,6 +116,44 @@ export default function RHSummary() {
       ) : (
         <div className="space-y-4">
           {error && <ErrorBox>{error}</ErrorBox>}
+
+          {/* Pemilih tanggal laporan */}
+          <div className="card flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <label className="label">Tanggal Laporan</label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="px-3 py-2 text-sm"
+              />
+              <p className="text-[11px] text-text-muted mt-1">{formatDateID(date)}</p>
+            </div>
+          </div>
+
+          {/* Export detail per user (PDF) */}
+          <div className="card">
+            <p className="flex items-center gap-1.5 text-sm font-semibold mb-3">
+              <FileDown size={16} className="text-hana-teal-700" /> Export Detail per User (PDF)
+            </p>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {users.map((u) => (
+                <div key={u.id} className="flex items-center gap-3 rounded-lg border border-hana-border px-3 py-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{u.name}</p>
+                    <p className="text-[10px] text-text-muted">{u.role}{u.branch ? ' · ' + u.branch : ''}</p>
+                  </div>
+                  <button
+                    onClick={() => handleExportPdf(u)}
+                    disabled={exportingId === u.id}
+                    className="btn-ghost !py-1.5 !px-3 text-xs shrink-0"
+                  >
+                    {exportingId === u.id ? <Loader2 size={13} className="animate-spin" /> : <FileDown size={13} />} PDF
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
 
           {!result && (
             <div className="card text-center py-8">
@@ -98,7 +170,10 @@ export default function RHSummary() {
 
           {result && (
             <>
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                <button onClick={handleExportPpt} disabled={pptBusy} className="btn-teal !py-2 text-xs">
+                  {pptBusy ? <Spinner size={14} className="text-white" /> : <Presentation size={14} />} Generate Laporan PPT
+                </button>
                 <button onClick={handleGenerate} disabled={generating} className="btn-ghost !py-2 text-xs">
                   {generating ? <Spinner size={14} /> : <Bot size={14} />} Regenerate
                 </button>

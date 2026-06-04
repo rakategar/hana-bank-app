@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, CheckCircle2, Trash2, Wand2 } from 'lucide-react';
+import { Save, CheckCircle2, Lock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import SlotFormRenderer from '../components/SlotFormRenderer';
-import { FullSpinner, ErrorBox, Spinner } from '../components/ui';
-import { emptyPlanByDay, emptyDaySlots, normalizePlanByDay, formSchemaFor } from '../constants/timeSlots';
+import { FullSpinner, ErrorBox } from '../components/ui';
+import { emptyPlanByDay, normalizePlanByDay, formSchemaFor } from '../constants/timeSlots';
 import { fetchWeeklyPlan, upsertWeeklyPlan, fetchSubordinates, fetchUserMaybe } from '../lib/db';
-import { generateDummyWeeklyPlan } from '../lib/dummyData';
-import { IS_DEMO } from '../lib/appMode';
-import { currentWeekId, WEEKDAYS, dayKeyFromDate, isStructuredFilled, clsx } from '../lib/utils';
+import { currentWeekId, WEEKDAYS, dayKeyFromDate, isStructuredFilled, isWeeklyPlanOpen, nowDate, clsx } from '../lib/utils';
 
 export default function WeeklyPlan() {
   const { user } = useAuth();
@@ -20,9 +18,10 @@ export default function WeeklyPlan() {
   const [users, setUsers] = useState({ supervisor: null, subordinates: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+
+  const planOpen = isWeeklyPlanOpen(nowDate());
 
   useEffect(() => {
     (async () => {
@@ -75,38 +74,6 @@ export default function WeeklyPlan() {
     }
   }
 
-  // Kosongkan jadwal HARI yang aktif
-  async function handleClearDay() {
-    setBusy('clear');
-    setError('');
-    try {
-      const next = { ...planByDay, [activeDay]: emptyDaySlots(user.role) };
-      setPlanByDay(next);
-      await persist(next, false);
-    } catch (e) {
-      setError(e.message || 'Gagal mengosongkan jadwal hari ini.');
-    } finally {
-      setBusy('');
-    }
-  }
-
-  // Mode demo: isi hari aktif dengan data dummy
-  async function handleAddDummy() {
-    setBusy('dummy');
-    setError('');
-    try {
-      const dayIndex = WEEKDAYS.findIndex((w) => w.key === activeDay);
-      const next = { ...planByDay, [activeDay]: generateDummyWeeklyPlan(user.role, dayIndex) };
-      setPlanByDay(next);
-      await persist(next, true);
-      setSubmitted(true);
-    } catch (e) {
-      setError(e.message || 'Gagal menambah dummy rencana.');
-    } finally {
-      setBusy('');
-    }
-  }
-
   return (
     <Layout title="Rencana Minggu Ini" back={true}>
       {loading ? (
@@ -115,27 +82,29 @@ export default function WeeklyPlan() {
         <div className="space-y-5">
           {error && <ErrorBox>{error}</ErrorBox>}
 
-          <div className="card flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold">{currentWeekId()} · {user.role}</p>
-              <p className="text-xs text-text-muted mt-0.5">Jadwalkan aktivitas Senin–Jumat</p>
-              {submitted && (
-                <p className="inline-flex items-center gap-1.5 text-xs text-score-4 mt-2">
-                  <CheckCircle2 size={14} /> Rencana minggu ini sudah disubmit
-                </p>
-              )}
-            </div>
-            <div className="flex gap-2">
-              {IS_DEMO && (
-                <button onClick={handleAddDummy} disabled={Boolean(busy)} className="btn-ghost !py-2 text-xs border-hana-teal-500/40 text-hana-teal-700">
-                  {busy === 'dummy' ? <Spinner size={14} /> : <Wand2 size={14} />} Dummy {WEEKDAYS.find((w) => w.key === activeDay)?.label}
-                </button>
-              )}
-              <button onClick={handleClearDay} disabled={Boolean(busy)} className="btn-ghost !py-2 text-xs border-score-1/40 text-score-1">
-                {busy === 'clear' ? <Spinner size={14} /> : <Trash2 size={14} />} Kosongkan Hari Ini
-              </button>
-            </div>
+          <div className="card">
+            <p className="text-sm font-semibold">{currentWeekId()} · {user.role}</p>
+            <p className="text-xs text-text-muted mt-0.5">Jadwalkan aktivitas Senin–Jumat</p>
+            {submitted && (
+              <p className="inline-flex items-center gap-1.5 text-xs text-score-4 mt-2">
+                <CheckCircle2 size={14} /> Rencana minggu ini sudah disubmit
+              </p>
+            )}
           </div>
+
+          {!planOpen && (
+            <div className="card border-score-2/40 bg-score-2/10">
+              <p className="flex items-center gap-2 text-sm font-semibold text-score-2">
+                <Lock size={16} /> Weekly Plan sedang ditutup
+              </p>
+              <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">
+                Penyusunan rencana mingguan dibuka tiap <b>Jumat</b> serta <b>5–7 Juni</b>. Di luar
+                jadwal itu Anda hanya dapat melihat rencana yang sudah tersimpan. Untuk menambah
+                kegiatan di tengah minggu (mis. follow-up lead), gunakan <b>Tambah Rencana Tambahan</b> di
+                halaman <b>Input Aktivitas</b>.
+              </p>
+            </div>
+          )}
 
           {/* Tab hari Senin–Jumat */}
           <div className="flex gap-1.5 overflow-x-auto pb-1">
@@ -173,20 +142,23 @@ export default function WeeklyPlan() {
                     value={slot.data || {}}
                     onChange={(data) => updateSlot(idx, { data })}
                     users={users}
+                    readOnly={!planOpen}
                   />
                 </div>
               );
             })}
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 sm:justify-end sticky bottom-4">
-            <button onClick={() => save(false)} disabled={saving} className="btn-ghost sm:w-auto">
-              <Save size={16} /> Simpan Draft
-            </button>
-            <button onClick={() => save(true)} disabled={saving} className="btn-teal sm:w-auto">
-              <CheckCircle2 size={16} /> Submit Rencana
-            </button>
-          </div>
+          {planOpen && (
+            <div className="flex flex-col sm:flex-row gap-3 sm:justify-end sticky bottom-4">
+              <button onClick={() => save(false)} disabled={saving} className="btn-ghost sm:w-auto">
+                <Save size={16} /> Simpan Draft
+              </button>
+              <button onClick={() => save(true)} disabled={saving} className="btn-teal sm:w-auto">
+                <CheckCircle2 size={16} /> Submit Rencana
+              </button>
+            </div>
+          )}
         </div>
       )}
     </Layout>

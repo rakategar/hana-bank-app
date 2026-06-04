@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Check, Zap, X as XIcon, ImagePlus, Loader2, Lock, AlertTriangle, CheckCircle2, ClipboardList, Save, FileText } from 'lucide-react';
-import { clsx } from '../lib/utils';
+import { Check, Zap, X as XIcon, ImagePlus, Loader2, Lock, AlertTriangle, CheckCircle2, ClipboardList, Save, FileText, Sparkles } from 'lucide-react';
+import { clsx, isStructuredFilled } from '../lib/utils';
 import { uploadActivityImage } from '../lib/storage';
 import SlotFormRenderer from './SlotFormRenderer';
 import { Spinner } from './ui';
@@ -76,6 +76,11 @@ export default function ActivitySlot({
           <span className="font-display font-bold text-hana-teal-700 text-base">{timeLabel}</span>
           <span className="text-sm font-semibold text-ink leading-tight truncate">{slot.label}</span>
         </div>
+        {slot.extra && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-hana-pink-50 text-hana-pink-600 shrink-0">
+            <Sparkles size={11} /> Tambahan
+          </span>
+        )}
       </div>
 
       {/* Banner status jendela waktu */}
@@ -102,6 +107,19 @@ export default function ActivitySlot({
         </p>
         {hasSchema ? (
           <SlotFormRenderer schema={formSchema} value={slot.planned_data || {}} users={users} readOnly />
+        ) : slot.extra && isStructuredFilled(slot.planned_data) ? (
+          <dl className="space-y-1">
+            {Object.entries(slot.planned_data).map(([k, v]) =>
+              v ? (
+                <div key={k} className="text-xs">
+                  <dt className="font-medium text-text-secondary capitalize">{k.replace(/_/g, ' ')}</dt>
+                  <dd className="text-ink">{String(v)}</dd>
+                </div>
+              ) : null
+            )}
+          </dl>
+        ) : slot.extra ? (
+          <p className="text-xs text-text-muted italic">Rencana tambahan — isi hasilnya di bawah.</p>
         ) : slot.planned ? (
           <p className="text-xs text-ink">{slot.planned}</p>
         ) : (

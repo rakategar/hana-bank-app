@@ -155,6 +155,43 @@ export async function deleteDailyData(userId, date = todayISO()) {
   if (e2) throw e2;
 }
 
+// ── EXTRA PLANS (rencana tambahan & aksi terjadwal FWSS) ──
+
+export async function fetchExtraPlans(userId, date = todayISO()) {
+  const { data, error } = await supabase
+    .from('extra_plans')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('date', date)
+    .order('time');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createExtraPlan({ userId, role, date, time, endTime, label, data = {}, source = 'manual' }) {
+  const { data: row, error } = await supabase
+    .from('extra_plans')
+    .insert({
+      user_id: userId,
+      role,
+      date,
+      time,
+      end_time: endTime || null,
+      label,
+      data,
+      source,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return row;
+}
+
+export async function deleteExtraPlan(id) {
+  const { error } = await supabase.from('extra_plans').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ── AI SCORES ─────────────────────────────────────────────
 
 export async function fetchScore(userId, date = todayISO()) {
@@ -179,6 +216,20 @@ export async function fetchScoreRange(userId, dates) {
 }
 
 // Range aktivitas (untuk completion heatmap — tanpa membocorkan skor)
+// Activities mentah untuk beberapa tanggal (matriks ActivityWatch per jam)
+export async function fetchActivitiesForDates(userId, dates) {
+  const { data, error } = await supabase
+    .from('daily_activities')
+    .select('date, activities')
+    .eq('user_id', userId)
+    .in('date', dates);
+  if (error) throw error;
+  return (data || []).map((row) => ({
+    date: row.date,
+    activities: Array.isArray(row.activities) ? row.activities : [],
+  }));
+}
+
 export async function fetchActivityRange(userId, dates) {
   const { data, error } = await supabase
     .from('daily_activities')
@@ -243,6 +294,21 @@ export async function fetchNotesForUser(targetUserId, date = todayISO()) {
     .order('updated_at', { ascending: false });
   if (error) throw error;
   return (data || []).filter((s) => s.supervisor_notes && s.supervisor_notes.trim());
+}
+
+// Semua catatan & action plan yang pernah disimpan supervisor (arsip), lintas tanggal.
+export async function fetchSummariesBySupervisor(supervisorId) {
+  const { data, error } = await supabase
+    .from('supervisor_summaries')
+    .select('*')
+    .eq('supervisor_id', supervisorId)
+    .eq('session_label', 'manual')
+    .order('date', { ascending: false })
+    .order('updated_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).filter(
+    (s) => (s.supervisor_notes && s.supervisor_notes.trim()) || (Array.isArray(s.action_plans) && s.action_plans.length > 0)
+  );
 }
 
 export async function upsertSummary({

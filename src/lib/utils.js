@@ -129,8 +129,39 @@ export function dayKeyFromDate(date = nowDate()) {
   const dow = new Date(date).getDay();
   return WEEKDAYS.find((w) => w.dow === dow)?.key || null;
 }
+
+// Weekly Plan hanya dibuka pada tanggal peluncuran 5–7 Juni 2026, lalu tiap Jumat.
+// Di luar itu, halaman rencana tertutup (read-only). Memakai nowDate() → demo clock
+// dapat mensimulasikan hari buka saat presentasi.
+export const WEEKLY_PLAN_SPECIAL_DATES = ['2026-06-05', '2026-06-06', '2026-06-07'];
+export function isWeeklyPlanOpen(date = nowDate()) {
+  const iso = formatDateISO(date);
+  if (WEEKLY_PLAN_SPECIAL_DATES.includes(iso)) return true;
+  return new Date(date).getDay() === 5; // Jumat
+}
 export function dayLabel(key) {
   return WEEKDAYS.find((w) => w.key === key)?.label || key;
+}
+
+// Tanggal Senin–Jumat untuk minggu yang memuat `date`.
+// → [{ value: 'YYYY-MM-DD', label: 'Sen 8 Jun', dow }]
+export function weekdayDatesOf(date = nowDate()) {
+  const base = new Date(date);
+  base.setHours(0, 0, 0, 0);
+  const dow = (base.getDay() + 6) % 7; // 0 = Senin
+  const monday = new Date(base);
+  monday.setDate(base.getDate() - dow);
+  const short = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+  const mo = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  return WEEKDAYS.map((w, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return {
+      value: formatDateISO(d),
+      label: `${short[d.getDay()]} ${d.getDate()} ${mo[d.getMonth()]}`,
+      dow: w.dow,
+    };
+  });
 }
 
 // ── Time-gating aktivitas ─────────────────────────────────

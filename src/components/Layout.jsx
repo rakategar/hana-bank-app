@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LogOut, ChevronLeft, Bell, Menu, X,
-  LayoutDashboard, ClipboardList, PencilLine, Bot,
+  LayoutDashboard, ClipboardList, PencilLine, Bot, FolderClock,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { initials, ROLE_LABELS, clsx } from '../lib/utils';
@@ -20,7 +20,10 @@ function navForRole(role) {
     { to: '/weekly-plan', label: 'Rencana Mingguan', icon: ClipboardList },
     { to: '/daily-input', label: 'Input Aktivitas', icon: PencilLine },
   ];
-  if (role === 'FWSS') items.push({ to: '/summary/fwss', label: 'Summary FA', icon: Bot });
+  if (role === 'FWSS') {
+    items.push({ to: '/summary/fwss', label: 'Summary FA', icon: Bot });
+    items.push({ to: '/notes-archive', label: 'Arsip Catatan', icon: FolderClock });
+  }
   if (role === 'BM') items.push({ to: '/summary/bm', label: 'Summary Tim', icon: Bot });
   return items;
 }

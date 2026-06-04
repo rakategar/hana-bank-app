@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Bot, Save, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bot, Save, AlertTriangle, CheckCircle2, FolderClock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import Layout from '../../components/Layout';
 import { FullSpinner, ErrorBox, Spinner } from '../../components/ui';
@@ -11,9 +12,14 @@ import {
   fetchScore,
   fetchSummaryFor,
   upsertSummary,
+  createExtraPlan,
 } from '../../lib/db';
 import { summarizeForFwss } from '../../lib/gemini';
-import { todayISO, currentWeekId } from '../../lib/utils';
+import { slotsForRole } from '../../constants/timeSlots';
+import { todayISO, currentWeekId, weekdayDatesOf, nowDate } from '../../lib/utils';
+
+const FWSS_SLOTS = slotsForRole('FWSS');
+const FWSS_TIME_OPTIONS = FWSS_SLOTS.map((s) => s.time);
 
 const ACTION_TEMPLATES = (faNames) => [
   ...faNames.map((n) => `Coaching individual dengan ${n}`),
@@ -24,6 +30,8 @@ const ACTION_TEMPLATES = (faNames) => [
 
 export default function FWSSSummary() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const scheduleDateOptions = weekdayDatesOf(nowDate()).filter((d) => d.value >= todayISO());
   const [fas, setFas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -100,15 +108,40 @@ export default function FWSSSummary() {
     setSaving(true);
     setError('');
     try {
-      const faSummary = aiResult?.fa_summaries?.find((f) => f.fa_id === faId || f.fa_name === fas.find((x) => x.id === faId)?.name);
+      const fa = fas.find((x) => x.id === faId);
+      const faSummary = aiResult?.fa_summaries?.find((f) => f.fa_id === faId || f.fa_name === fa?.name);
+
+      // Aksi yang dijadwalkan & belum diinjeksi → buat extra_plan di agenda FWSS sendiri.
+      const items = actions[faId] || [];
+      const updatedItems = [];
+      for (const item of items) {
+        if (item.schedule?.date && item.schedule?.time && !item.schedule.extra_plan_id) {
+          const slot = FWSS_SLOTS.find((s) => s.time === item.schedule.time);
+          const row = await createExtraPlan({
+            userId: user.id,
+            role: 'FWSS',
+            date: item.schedule.date,
+            time: item.schedule.time,
+            endTime: slot?.endTime || null,
+            label: item.label,
+            data: fa ? { target_fa: fa.name } : {},
+            source: 'fwss_action',
+          });
+          updatedItems.push({ ...item, schedule: { ...item.schedule, extra_plan_id: row.id } });
+        } else {
+          updatedItems.push(item);
+        }
+      }
+
       await upsertSummary({
         supervisorId: user.id,
         targetUserId: faId,
         aiSummary: faSummary?.summary || null,
         summaryData: aiResult,
         supervisorNotes: notes[faId] || '',
-        actionPlans: actions[faId] || [],
+        actionPlans: updatedItems,
       });
+      setActions((a) => ({ ...a, [faId]: updatedItems }));
       setSavedFor((s) => ({ ...s, [faId]: true }));
       setTimeout(() => setSavedFor((s) => ({ ...s, [faId]: false })), 2500);
     } catch (e) {
@@ -129,6 +162,12 @@ export default function FWSSSummary() {
       ) : (
         <div className="space-y-4">
           {error && <ErrorBox>{error}</ErrorBox>}
+
+          <div className="flex justify-end">
+            <button onClick={() => navigate('/notes-archive')} className="btn-ghost !py-2 text-xs">
+              <FolderClock size={14} /> Arsip Catatan
+            </button>
+          </div>
 
           {!aiResult && (
             <div className="card text-center py-8">
@@ -198,6 +237,9 @@ export default function FWSSSummary() {
                         templates={ACTION_TEMPLATES([fa.name])}
                         value={actions[fa.id] || []}
                         onChange={(v) => setActions((a) => ({ ...a, [fa.id]: v }))}
+                        scheduleEnabled
+                        dateOptions={scheduleDateOptions}
+                        timeOptions={FWSS_TIME_OPTIONS}
                       />
                       <button onClick={() => handleSave(fa.id)} disabled={saving} className="btn-teal w-full mt-3">
                         {savedFor[fa.id] ? <CheckCircle2 size={16} /> : <Save size={16} />}

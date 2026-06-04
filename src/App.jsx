@@ -11,6 +11,7 @@ import WeeklyPlan from './pages/WeeklyPlan';
 import DailyInput from './pages/DailyInput';
 import ScoreResult from './pages/ScoreResult';
 import FWSSSummary from './pages/fwss/Summary';
+import NotesArchive from './pages/fwss/NotesArchive';
 import BMSummary from './pages/bm/Summary';
 import RHSummary from './pages/rh/Summary';
 
@@ -72,6 +73,7 @@ export default function App() {
       <Route path="/score-result" element={<ProtectedRoute><ScoreResult /></ProtectedRoute>} />
 
       <Route path="/summary/fwss" element={<ProtectedRoute role="FWSS"><FWSSSummary /></ProtectedRoute>} />
+      <Route path="/notes-archive" element={<ProtectedRoute role="FWSS"><NotesArchive /></ProtectedRoute>} />
       <Route path="/summary/bm" element={<ProtectedRoute role="BM"><BMSummary /></ProtectedRoute>} />
       <Route path="/summary/rh" element={<ProtectedRoute role="RH"><RHSummary /></ProtectedRoute>} />
 

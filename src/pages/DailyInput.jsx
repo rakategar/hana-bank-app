@@ -1,35 +1,37 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Brain, CalendarOff, Wand2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Brain, CalendarOff, CalendarPlus, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import ActivitySlot from '../components/ActivitySlot';
-import { Modal, FullSpinner, ErrorBox, Spinner, Toast } from '../components/ui';
+import ExtraPlanModal from '../components/ExtraPlanModal';
+import { FullSpinner, ErrorBox, Spinner, Toast } from '../components/ui';
 import { emptyPlanByDay, normalizePlanByDay, formSchemaFor } from '../constants/timeSlots';
 import {
   fetchWeeklyPlan,
   fetchDailyActivity,
   upsertDailyActivity,
-  deleteDailyData,
   upsertScore,
   fetchSubordinates,
   fetchUserMaybe,
+  fetchExtraPlans,
+  createExtraPlan,
 } from '../lib/db';
 import { scoreDailyActivities, isGeminiConfigured } from '../lib/gemini';
-import { generateDummyActivities, generateDummyScores } from '../lib/dummyData';
-import { IS_DEMO } from '../lib/appMode';
 import {
   todayISO, currentWeekId, dayKeyFromDate, dayLabel, formatDateID,
   slotWindowState, slotWindow, fmtClock, nowDate, DEFAULT_DURATION,
   serializeStructuredData, isStructuredFilled,
 } from '../lib/utils';
 
-// Bangun slot harian dari jadwal hari tsb.
+// Bangun slot harian dari jadwal hari tsb + rencana tambahan (extra plans).
 // Pre-inisialisasi actual_data untuk list fields dengan resultSchema dari planned_data.
-function buildSlots(daySchedule, savedActivity, role) {
-  const savedByTime = new Map((savedActivity?.activities || []).map((a) => [a.time, a]));
-  return daySchedule.map((p) => {
-    const saved = savedByTime.get(p.time) || {};
+function buildSlots(daySchedule, savedActivity, role, extraPlans = []) {
+  // Cocokkan saved activity via key (standar: time; extra: 'x-<id>') — fallback ke time.
+  const savedByKey = new Map((savedActivity?.activities || []).map((a) => [a.key || a.time, a]));
+
+  const standard = daySchedule.map((p) => {
+    const saved = savedByKey.get(p.time) || {};
     const plannedData = p.data || {};
     const savedActual = saved.actual_data || {};
 
@@ -48,6 +50,7 @@ function buildSlots(daySchedule, savedActivity, role) {
     }
 
     return {
+      key: p.time,
       time: p.time,
       endTime: p.endTime,
       label: p.label,
@@ -61,6 +64,29 @@ function buildSlots(daySchedule, savedActivity, role) {
       image_url: saved.image_url || null,
     };
   });
+
+  const extra = extraPlans.map((ep) => {
+    const key = `x-${ep.id}`;
+    const saved = savedByKey.get(key) || {};
+    return {
+      key,
+      extraId: ep.id,
+      extra: true,
+      time: ep.time,
+      endTime: ep.end_time || null,
+      label: ep.label,
+      duration: DEFAULT_DURATION,
+      planned_data: ep.data || {},
+      actual_data: saved.actual_data || {},
+      actual: saved.actual || '',
+      activity_status: saved.activity_status || 'not_done',
+      notes: saved.notes || '',
+      image_path: saved.image_path || null,
+      image_url: saved.image_url || null,
+    };
+  });
+
+  return [...standard, ...extra].sort((a, b) => a.time.localeCompare(b.time));
 }
 
 function syncActual(s) {
@@ -122,12 +148,11 @@ export default function DailyInput() {
   const [users, setUsers] = useState({ supervisor: null, subordinates: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [hasData, setHasData] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [busy, setBusy] = useState('');
   const [busySlot, setBusySlot] = useState(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [showOthers, setShowOthers] = useState(false);
+  const [showExtraModal, setShowExtraModal] = useState(false);
   const [toast, setToast] = useState(null);
 
   const autoSaveTimer = useRef(null);
@@ -137,17 +162,17 @@ export default function DailyInput() {
     if (!dayKey) { setLoading(false); return; }
     (async () => {
       try {
-        const [plan, activity, supervisor, subordinates] = await Promise.all([
+        const [plan, activity, supervisor, subordinates, extraPlans] = await Promise.all([
           fetchWeeklyPlan(user.id, currentWeekId()),
           fetchDailyActivity(user.id, date),
           user.supervisor_id ? fetchUserMaybe(user.supervisor_id) : Promise.resolve(null),
           fetchSubordinates(user.id),
+          fetchExtraPlans(user.id, date),
         ]);
         const byDay = plan?.slots ? normalizePlanByDay(plan.slots, user.role) : emptyPlanByDay(user.role);
-        const built = buildSlots(byDay[dayKey], activity, user.role);
+        const built = buildSlots(byDay[dayKey], activity, user.role, extraPlans);
         setSlots(built);
         setUsers({ supervisor, subordinates });
-        if (activity?.activities?.length) setHasData(true);
       } catch (e) {
         setError(e.message || 'Gagal memuat input harian.');
       } finally {
@@ -156,6 +181,26 @@ export default function DailyInput() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id, user.supervisor_id, date, dayKey]);
+
+  // Tambah rencana tambahan → buat extra_plan, lalu rebuild slot (pertahankan input yang ada).
+  async function handleCreateExtraPlan(payload) {
+    // Simpan dulu edit yang belum tersimpan agar tidak hilang saat rebuild.
+    if (dirty.current) {
+      try { await persist(); } catch { /* lanjut */ }
+    }
+    await createExtraPlan({ userId: user.id, role: user.role, ...payload });
+    const [plan, activity, extraPlans] = await Promise.all([
+      fetchWeeklyPlan(user.id, currentWeekId()),
+      fetchDailyActivity(user.id, date),
+      fetchExtraPlans(user.id, date),
+    ]);
+    const byDay = plan?.slots ? normalizePlanByDay(plan.slots, user.role) : emptyPlanByDay(user.role);
+    setSlots(buildSlots(byDay[dayKey], activity, user.role, extraPlans));
+    setToast({
+      type: 'success',
+      message: payload.date === date ? `Rencana "${payload.label}" ditambahkan ke agenda hari ini.` : `Rencana "${payload.label}" dijadwalkan.`,
+    });
+  }
 
   const persist = useCallback(
     async (overrideSlots, opts = {}) => {
@@ -169,7 +214,6 @@ export default function DailyInput() {
         submit: opts.submit,
       });
       setSavedAt(new Date());
-      setHasData(true);
       dirty.current = false;
     },
     [slots, user.id, user.role, date]
@@ -203,54 +247,6 @@ export default function DailyInput() {
       setToast({ type: 'error', message: e.message || 'Gagal menyimpan slot.' });
     } finally {
       setBusySlot(null);
-    }
-  }
-
-  async function handleDeleteDay() {
-    setBusy('deleting');
-    setError('');
-    try {
-      await deleteDailyData(user.id, date);
-      const plan = await fetchWeeklyPlan(user.id, currentWeekId());
-      const byDay = plan?.slots ? normalizePlanByDay(plan.slots, user.role) : emptyPlanByDay(user.role);
-      setSlots(buildSlots(byDay[dayKey], null, user.role));
-      setHasData(false);
-      setSavedAt(null);
-    } catch (e) {
-      setError(e.message || 'Gagal menghapus data.');
-    } finally {
-      setBusy('');
-      setConfirmDelete(false);
-    }
-  }
-
-  // Mode demo: isi semua slot dengan aktivitas + skor dummy
-  async function handleAddDummy() {
-    setBusy('dummy');
-    setError('');
-    try {
-      const activities = generateDummyActivities(user.role);
-      const metaByTime = new Map(slots.map((s) => [s.time, s]));
-      const withMeta = activities.map((a) => {
-        const m = metaByTime.get(a.time) || {};
-        return {
-          ...a,
-          planned_data: m.planned_data || {},
-          actual_data: m.actual_data || {},
-          duration: m.duration ?? DEFAULT_DURATION,
-        };
-      });
-      setSlots(withMeta);
-      await upsertDailyActivity({
-        userId: user.id, role: user.role, date, activities: withMeta, status: 'scored', isDummy: true,
-      });
-      const result = generateDummyScores(user.role, withMeta);
-      await upsertScore({ userId: user.id, role: user.role, date, result, isDummy: true });
-      setHasData(true);
-    } catch (e) {
-      setError(e.message || 'Gagal menambah dummy.');
-    } finally {
-      setBusy('');
     }
   }
 
@@ -326,16 +322,9 @@ export default function DailyInput() {
           )}
 
           <div className="flex justify-end gap-2">
-            {IS_DEMO && (
-              <button onClick={handleAddDummy} disabled={Boolean(busy)} className="btn-ghost !py-2 text-xs border-hana-teal-500/40 text-hana-teal-700">
-                {busy === 'dummy' ? <Spinner size={14} /> : <Wand2 size={14} />} Tambah Dummy
-              </button>
-            )}
-            {hasData && (
-              <button onClick={() => setConfirmDelete(true)} disabled={Boolean(busy)} className="btn-ghost !py-2 text-xs border-score-1/40 text-score-1">
-                <Trash2 size={14} /> Hapus Data Hari Ini
-              </button>
-            )}
+            <button onClick={() => setShowExtraModal(true)} disabled={Boolean(busy)} className="btn-ghost !py-2 text-xs border-hana-teal-500/40 text-hana-teal-700">
+              <CalendarPlus size={14} /> Tambah Rencana Tambahan
+            </button>
           </div>
 
           {savedAt && <p className="text-[11px] text-text-muted -mt-1">Draft tersimpan · {savedAt.toLocaleTimeString('id-ID')}</p>}
@@ -349,12 +338,12 @@ export default function DailyInput() {
                 const { start, end } = slotWindow(date, slot.time, slot.endTime);
                 return (
                   <ActivitySlot
-                    key={slot.time}
+                    key={slot.key}
                     slot={slot}
                     userId={user.id}
                     date={date}
                     users={users}
-                    formSchema={formSchemaFor(user.role, slot.time)}
+                    formSchema={slot.extra ? [] : formSchemaFor(user.role, slot.time)}
                     windowState={state}
                     startLabel={fmtClock(start)}
                     endLabel={fmtClock(end)}
@@ -390,12 +379,12 @@ export default function DailyInput() {
                     const { start, end } = slotWindow(date, slot.time, slot.endTime);
                     return (
                       <ActivitySlot
-                        key={slot.time}
+                        key={slot.key}
                         slot={slot}
                         userId={user.id}
                         date={date}
                         users={users}
-                        formSchema={formSchemaFor(user.role, slot.time)}
+                        formSchema={slot.extra ? [] : formSchemaFor(user.role, slot.time)}
                         windowState={state}
                         startLabel={fmtClock(start)}
                         endLabel={fmtClock(end)}
@@ -420,23 +409,12 @@ export default function DailyInput() {
         </div>
       )}
 
-      <Modal
-        open={confirmDelete}
-        onClose={() => setConfirmDelete(false)}
-        title="Hapus Data Hari Ini?"
-        footer={
-          <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => setConfirmDelete(false)} className="btn-ghost">Batal</button>
-            <button onClick={handleDeleteDay} disabled={busy === 'deleting'} className="btn-pink">
-              {busy === 'deleting' ? <Spinner size={16} className="text-white" /> : <Trash2 size={16} />} Hapus
-            </button>
-          </div>
-        }
-      >
-        <p className="text-sm text-text-secondary">
-          Menghapus aktivitas harian <b>dan</b> skor AI hari ini. Rencana mingguan tidak terpengaruh.
-        </p>
-      </Modal>
+      <ExtraPlanModal
+        open={showExtraModal}
+        onClose={() => setShowExtraModal(false)}
+        role={user.role}
+        onCreate={handleCreateExtraPlan}
+      />
 
       <Toast toast={toast} onClose={() => setToast(null)} />
     </Layout>
