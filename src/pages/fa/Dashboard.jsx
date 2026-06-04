@@ -5,7 +5,7 @@ import Layout from '../../components/Layout';
 import ActivityWatch from '../../components/ActivityWatch';
 import WarningBanner from '../../components/WarningBanner';
 import { FullSpinner, ErrorBox } from '../../components/ui';
-import { TodayStatusCard, PlanDailyStatus, PrimaryActions, NotesCard, SectionTitle } from '../../components/dashboard';
+import { TodayStatusCard, PlanDailyStatus, PrimaryActions, NotesCard, SectionTitle, DashboardIntro } from '../../components/dashboard';
 import { slotsForRole } from '../../constants/timeSlots';
 
 export default function FADashboard() {
@@ -24,10 +24,7 @@ export default function FADashboard() {
           {error && <ErrorBox>{error}</ErrorBox>}
           <WarningBanner warnings={warnings} onRead={reload} />
 
-          <div>
-            <p className="font-display text-2xl font-bold">Halo, {user.name.split(' ')[0]} 👋</p>
-            <p className="text-sm text-text-secondary">Financial Advisor · {user.branch}</p>
-          </div>
+          <DashboardIntro title={`Halo, ${user.name.split(' ')[0]}`} subtitle={`Financial Advisor - ${user.branch}`} />
 
           <TodayStatusCard activity={activity} score={score} totalSlots={totalSlots} />
           <ActivityWatch userId={user.id} role={user.role} />

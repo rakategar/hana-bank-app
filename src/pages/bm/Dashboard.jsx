@@ -10,7 +10,7 @@ import WarningBanner from '../../components/WarningBanner';
 import MonitorCard from '../../components/MonitorCard';
 import ActivityDetailModal from '../../components/ActivityDetailModal';
 import { FullSpinner, ErrorBox } from '../../components/ui';
-import { TodayStatusCard, PlanDailyStatus, PrimaryActions, NotesCard, SectionTitle } from '../../components/dashboard';
+import { TodayStatusCard, PlanDailyStatus, PrimaryActions, NotesCard, SectionTitle, DashboardIntro } from '../../components/dashboard';
 import { fetchSubordinates, fetchUserDaySnapshot } from '../../lib/db';
 import { slotsForRole } from '../../constants/timeSlots';
 
@@ -57,10 +57,7 @@ export default function BMDashboard() {
           {error && <ErrorBox>{error}</ErrorBox>}
           <WarningBanner warnings={warnings} onRead={reload} />
 
-          <div>
-            <p className="font-display text-2xl font-bold">Halo, {user.name.split(' ')[0]} 👋</p>
-            <p className="text-sm text-text-secondary">Branch Manager · {user.branch}</p>
-          </div>
+          <DashboardIntro title={`Halo, ${user.name.split(' ')[0]}`} subtitle={`Branch Manager - ${user.branch}`} />
 
           <TodayStatusCard activity={activity} score={score} totalSlots={totalSlots} />
           <ActivityWatch userId={user.id} role={user.role} />

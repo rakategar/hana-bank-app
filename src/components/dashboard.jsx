@@ -13,10 +13,15 @@ export function TodayStatusCard({ activity, score, totalSlots }) {
 
   return (
     <div className="card">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <ListChecks size={18} className="text-hana-teal-600" />
-          <p className="font-semibold text-sm">Input Aktivitas Hari Ini</p>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-hana-teal-50 text-hana-teal-700">
+            <ListChecks size={18} />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-ink">Input Aktivitas Hari Ini</p>
+            <p className="text-xs text-text-muted">Progress pengisian slot harian</p>
+          </div>
         </div>
         <StatusPill status={dailyStatus} />
       </div>
@@ -24,7 +29,7 @@ export function TodayStatusCard({ activity, score, totalSlots }) {
         <span className="font-display font-extrabold text-4xl leading-none text-ink">{filled}</span>
         <span className="text-text-muted text-sm mb-1">/ {totalSlots} slot terisi</span>
       </div>
-      <div className="mt-3 h-2 rounded-full bg-elevated overflow-hidden">
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-elevated">
         <div className="h-full rounded-full bg-hana-teal-500 transition-all" style={{ width: `${pct}%` }} />
       </div>
       {dailyStatus === 'scored' && (
@@ -44,9 +49,9 @@ export function PlanDailyStatus({ plan, activity, score }) {
   else if (activity) dailyStatus = 'draft';
 
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid gap-4 sm:grid-cols-2">
       <div className="card">
-        <p className="text-xs text-text-muted mb-2">Rencana Minggu Ini</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Rencana Minggu Ini</p>
         {planSubmitted ? (
           <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-score-4">
             <CheckCircle2 size={16} /> Sudah disubmit
@@ -58,7 +63,7 @@ export function PlanDailyStatus({ plan, activity, score }) {
         )}
       </div>
       <div className="card">
-        <p className="text-xs text-text-muted mb-2">Status Penilaian</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Status Penilaian</p>
         <StatusPill status={dailyStatus} />
       </div>
     </div>
@@ -68,11 +73,11 @@ export function PlanDailyStatus({ plan, activity, score }) {
 export function PrimaryActions() {
   const navigate = useNavigate();
   return (
-    <div className="grid sm:grid-cols-2 gap-4">
-      <button onClick={() => navigate('/weekly-plan')} className="btn-teal w-full">
+    <div className="grid gap-4 sm:grid-cols-2">
+      <button onClick={() => navigate('/weekly-plan')} className="btn-teal min-h-12 w-full">
         <ClipboardList size={18} /> Buat Rencana Minggu Ini
       </button>
-      <button onClick={() => navigate('/daily-input')} className="btn-pink w-full">
+      <button onClick={() => navigate('/daily-input')} className="btn-pink min-h-12 w-full">
         <PencilLine size={18} /> Input Aktivitas Hari Ini
       </button>
     </div>
@@ -84,7 +89,7 @@ export function NotesCard({ notes = [], fromLabel = 'Supervisor' }) {
   return (
     <div className="space-y-3">
       {notes.map((n) => (
-        <div key={n.id} className="card border-hana-teal-500/30 bg-hana-teal-50">
+        <div key={n.id} className="card border-hana-teal-500/25 bg-hana-teal-50/85">
           <div className="flex items-center gap-2 mb-2">
             <MessageSquareText size={16} className="text-hana-teal-600" />
             <p className="text-sm font-semibold text-hana-teal-700">Catatan dari {fromLabel}</p>
@@ -113,9 +118,21 @@ export function NotesCard({ notes = [], fromLabel = 'Supervisor' }) {
 
 export function SectionTitle({ children, action }) {
   return (
-    <div className="flex items-center justify-between mb-3 mt-1">
-      <h2 className="font-display text-lg font-bold">{children}</h2>
+    <div className="mb-3 mt-1 flex items-center justify-between gap-3">
+      <h2 className="font-display text-lg font-extrabold">{children}</h2>
       {action}
+    </div>
+  );
+}
+
+export function DashboardIntro({ title, subtitle, actions }) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="min-w-0">
+        <p className="truncate font-display text-2xl font-extrabold text-ink">{title}</p>
+        {subtitle && <p className="mt-1 text-sm text-text-secondary">{subtitle}</p>}
+      </div>
+      {actions && <div className="flex flex-wrap gap-3">{actions}</div>}
     </div>
   );
 }

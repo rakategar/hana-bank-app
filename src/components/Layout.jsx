@@ -30,7 +30,7 @@ function navForRole(role) {
 
 function Sidebar({ user, items, current, onNavigate, onLogout }) {
   return (
-    <div className="flex h-full flex-col border-r border-white/10 bg-sidebar text-white shadow-elevated">
+    <div className="flex h-full flex-col border-r border-white/10 bg-[linear-gradient(180deg,#07352D_0%,#092B25_100%)] text-white shadow-elevated">
       <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
         <img src={logo} alt="Bank Hana" className="h-9 w-9" />
         <div className="leading-tight">
@@ -40,15 +40,28 @@ function Sidebar({ user, items, current, onNavigate, onLogout }) {
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {items.map(({ to, label, icon: Icon }) => (
-          <button
-            key={to}
-            onClick={() => onNavigate(to)}
-            className={clsx('nav-item w-full', current === to && 'nav-item-active')}
-          >
-            <Icon size={18} /> {label}
-          </button>
-        ))}
+        {items.map(({ to, label, icon: Icon }) => {
+          const active = current === to;
+          return (
+            <button
+              key={to}
+              onClick={() => onNavigate(to)}
+              className={clsx('nav-item group w-full', active && 'nav-item-active')}
+            >
+              <span
+                className={clsx(
+                  'grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors',
+                  active
+                    ? 'bg-white/16 text-white'
+                    : 'bg-white/5 text-white/70 group-hover:bg-white/10 group-hover:text-white'
+                )}
+              >
+                <Icon size={17} />
+              </span>
+              <span className="truncate">{label}</span>
+            </button>
+          );
+        })}
       </nav>
 
       <div className="border-t border-white/10 p-3">
@@ -63,8 +76,11 @@ function Sidebar({ user, items, current, onNavigate, onLogout }) {
             </div>
           </div>
         </div>
-        <button onClick={onLogout} className="nav-item w-full text-white/70">
-          <LogOut size={18} /> Keluar
+        <button onClick={onLogout} className="nav-item group w-full text-white/70">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/5 text-white/70 transition-colors group-hover:bg-white/10 group-hover:text-white">
+            <LogOut size={17} />
+          </span>
+          <span>Keluar</span>
         </button>
       </div>
     </div>
@@ -107,8 +123,8 @@ export default function Layout({ children, title, back, unreadCount = 0 }) {
 
       <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
         {/* Topbar */}
-        <header className="sticky top-0 z-20 border-b border-white/60 bg-white/70 shadow-[0_1px_24px_rgba(15,23,42,0.05)] backdrop-blur-2xl">
-          <div className="h-16 px-4 sm:px-6 flex items-center gap-3">
+        <header className="sticky top-0 z-20 px-4 pt-4 sm:px-6">
+          <div className="flex min-h-16 items-center gap-3 rounded-2xl border border-white/80 bg-white/75 px-3 py-2 shadow-card backdrop-blur-2xl">
             <button
               onClick={() => setDrawer(true)}
               className="grid h-10 w-10 place-items-center rounded-xl text-text-secondary transition-colors hover:bg-white hover:text-ink lg:hidden"
@@ -120,29 +136,40 @@ export default function Layout({ children, title, back, unreadCount = 0 }) {
             {back && (
               <button
                 onClick={() => navigate(back === true ? dashboardPath() : back)}
-                className="hidden items-center gap-1 rounded-xl px-2.5 py-2 text-sm font-semibold text-text-secondary transition-colors hover:bg-white hover:text-ink sm:inline-flex"
+                className="hidden h-10 w-10 shrink-0 place-items-center rounded-xl text-text-secondary transition-colors hover:bg-elevated hover:text-ink sm:grid"
+                aria-label="Kembali"
               >
-                <ChevronLeft size={18} /> Kembali
+                <ChevronLeft size={20} />
               </button>
             )}
 
-            <h1 className="font-display text-xl font-extrabold truncate flex-1">
-              {title || 'Dashboard'}
-            </h1>
+            <div className="min-w-0 flex-1">
+              <p className="hidden text-[11px] font-semibold text-text-muted sm:block">
+                Pages / <span className="text-text-secondary">{title || 'Dashboard'}</span>
+              </p>
+              <h1 className="truncate font-display text-lg font-extrabold leading-tight">
+                {title || 'Dashboard'}
+              </h1>
+              <p className="truncate text-xs font-medium text-text-muted sm:hidden">
+                {user.name} - {ROLE_LABELS[user.role]}
+              </p>
+            </div>
 
-            {IS_DEMO && <DemoClock />}
+            <div className="flex shrink-0 items-center gap-2">
+              {IS_DEMO && <DemoClock />}
 
-            {unreadCount > 0 && (
-              <div className="relative grid h-10 w-10 place-items-center rounded-xl bg-white/70 shadow-card">
-                <Bell size={20} className="text-score-1" />
-                <span className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 rounded-full bg-score-1 text-white text-[10px] font-bold grid place-items-center">
-                  {unreadCount}
-                </span>
+              {unreadCount > 0 && (
+                <div className="relative grid h-9 w-9 place-items-center rounded-xl border border-hana-border bg-white/80 shadow-sm">
+                  <Bell size={18} className="text-score-1" />
+                  <span className="absolute -right-1 -top-1 h-4 min-w-4 rounded-full bg-score-1 px-1 text-[10px] font-bold text-white grid place-items-center">
+                    {unreadCount}
+                  </span>
+                </div>
+              )}
+
+              <div className="grid h-8 w-8 place-items-center rounded-lg bg-hana-teal-500 font-display text-xs font-bold text-white shadow-card lg:hidden">
+                {initials(user.name)}
               </div>
-            )}
-
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-hana-teal-500 font-display text-sm font-bold text-white shadow-card lg:hidden">
-              {initials(user.name)}
             </div>
           </div>
         </header>
