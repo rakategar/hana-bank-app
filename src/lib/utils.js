@@ -100,6 +100,14 @@ export function levelFromAverage(avg) {
   return SCORE_LEVELS[Math.max(1, Math.min(4, Math.round(avg)))];
 }
 
+// Map level (string/number/null) → status snake_case yang dipakai PersonSummaryCard.
+// null/tak dikenal → 'critical' (default aman: belum ada data).
+export function statusFromLevel(value) {
+  const info = levelInfo(value);
+  if (!info) return 'critical';
+  return info.label.toLowerCase().replace(/ /g, '_'); // "ON TRACK" → "on_track"
+}
+
 // ── Score visibility ──────────────────────────────────────
 // Aturan: seseorang TIDAK boleh melihat skor dirinya sendiri.
 // Atasan boleh melihat skor bawahannya (viewer != target).

@@ -113,16 +113,24 @@ export async function summarizeForFwss({ faData }) {
   const dataText = faData
     .map(
       (fa, i) =>
-        `Data FA ${i + 1} (${fa.id} - ${fa.name}):\n` +
+        `Data FA ${i + 1} (id=${fa.id}, nama=${fa.name}):\n` +
         `- Weekly plan: ${JSON.stringify(fa.weeklyPlan || 'belum ada')}\n` +
         `- Aktivitas hari ini: ${JSON.stringify(fa.activities || 'belum ada')}\n` +
-        `- AI scores: ${JSON.stringify(fa.score || 'belum dinilai')}`
+        `- AI scores (daily_level = level resmi): ${JSON.stringify(fa.score || 'belum dinilai')}`
     )
     .join('\n\n');
 
   const prompt = `Kamu adalah asisten manajerial FWSS Bank Hana dalam program ICU Class.
-Buat ringkasan kinerja FA berikut dalam Bahasa Indonesia.
+Buat ringkasan kinerja seluruh FA berikut dalam Bahasa Indonesia.
 
+ATURAN AKURASI (WAJIB):
+- Pakai "fa_id" & "fa_name" PERSIS dari data (jangan mengubah/mengarang nama atau id).
+- "performance_status" HARUS sama dengan daily_level dari AI scores bila ada
+  (CRITICAL→critical, RECOVERY→recovery, ON TRACK→on_track, HIGH IMPACT→high_impact).
+- Jika AI scores "belum dinilai" / aktivitas belum diisi: set performance_status "critical",
+  summary cukup "Belum mengisi aktivitas hari ini", dan KOSONGKAN highlights (jangan mengarang prestasi).
+
+Data FA:
 ${dataText}
 
 Output HANYA JSON valid:
@@ -132,11 +140,11 @@ Output HANYA JSON valid:
     "fa_name": "",
     "performance_status": "critical|recovery|on_track|high_impact",
     "summary": "max 150 kata",
-    "highlights": ["max 3 poin positif"],
+    "highlights": ["max 3 poin positif (kosong bila belum ada data)"],
     "risks": ["max 3 poin risiko"],
     "fwss_recommendations": ["max 3 tindakan konkret untuk FWSS"]
   }],
-  "team_overall": "ringkasan 2 FA dalam 1 paragraf",
+  "team_overall": "ringkasan seluruh FA dalam 1 paragraf",
   "urgent_actions": ["tindakan mendesak jika ada"]
 }`;
 
@@ -149,16 +157,24 @@ export async function summarizeForBm({ fwssData }) {
   const dataText = fwssData
     .map(
       (f, i) =>
-        `Data FWSS ${i + 1} (${f.id} - ${f.name}):\n` +
-        `- Aktivitas & score sendiri: ${JSON.stringify(f.score || 'belum dinilai')}\n` +
+        `Data FWSS ${i + 1} (id=${f.id}, nama=${f.name}):\n` +
+        `- Aktivitas & score sendiri (daily_level = level resmi): ${JSON.stringify(f.score || 'belum dinilai')}\n` +
         `- Summary FWSS untuk FA: ${JSON.stringify(f.faSummary || 'belum ada')}\n` +
         `- FA di bawahnya: ${JSON.stringify(f.faScores || [])}`
     )
     .join('\n\n');
 
   const prompt = `Kamu adalah asisten manajerial Branch Manager Bank Hana dalam program ICU Class.
-Buat executive summary kinerja 2 FWSS beserta FA mereka dalam Bahasa Indonesia.
+Buat executive summary kinerja seluruh FWSS beserta FA mereka dalam Bahasa Indonesia.
 
+ATURAN AKURASI (WAJIB):
+- Pakai "fwss_id" & "fwss_name" PERSIS dari data.
+- "performance_status" HARUS sama dengan daily_level dari score sendiri bila ada
+  (CRITICAL→critical, RECOVERY→recovery, ON TRACK→on_track, HIGH IMPACT→high_impact).
+- Jika "belum dinilai": set performance_status "critical", summary "Belum mengisi aktivitas hari ini",
+  dan KOSONGKAN highlights (jangan mengarang prestasi/angka).
+
+Data:
 ${dataText}
 
 Output HANYA JSON valid:
@@ -168,11 +184,11 @@ Output HANYA JSON valid:
     "fwss_name": "",
     "performance_status": "critical|recovery|on_track|high_impact",
     "summary": "max 150 kata",
-    "highlights": ["max 3 poin positif"],
+    "highlights": ["max 3 poin positif (kosong bila belum ada data)"],
     "risks": ["max 3 poin risiko"],
     "bm_recommendations": ["max 3 tindakan strategis untuk BM"]
   }],
-  "team_overall": "ringkasan tim cabang dalam 1 paragraf",
+  "team_overall": "ringkasan seluruh tim cabang dalam 1 paragraf",
   "urgent_actions": ["tindakan mendesak jika ada"]
 }`;
 
@@ -182,15 +198,33 @@ Output HANYA JSON valid:
 // ── 4. SUMMARY RH keseluruhan ─────────────────────────────
 
 export async function summarizeForRh({ allData }) {
-  const prompt = `Kamu adalah asisten eksekutif Regional Head Bank Hana dalam program ICU Class.
-Buat executive summary kinerja seluruh tim hari ini dalam Bahasa Indonesia.
+  const facts = {
+    ranking: allData.ranking || [],
+    stats: allData.stats || null,
+    team: allData.team || [],
+    bm_summary: allData.bm_summary || null,
+  };
 
-Data seluruh tim:
-${JSON.stringify(allData, null, 2)}
+  const prompt = `Kamu adalah asisten eksekutif Regional Head Bank Hana dalam program ICU Class.
+Buat executive summary kinerja seluruh tim hari ini dalam Bahasa Indonesia eksekutif.
+
+ATURAN AKURASI (WAJIB, jangan dilanggar):
+- Gunakan angka HANYA dari blok FAKTA di bawah. JANGAN menghitung ulang atau mengarang skor.
+- "performance_ranking" SALIN PERSIS dari FAKTA.ranking (rank, user_id, name, role, score, level apa adanya).
+- User dengan score null / has_score=false BELUM mengisi/dinilai aktivitas: sebut sebagai
+  "belum ada data", JANGAN memberi skor atau menilai performanya seolah ada angka.
+- "requires_warning_letter" HANYA boleh berisi user_id yang di FAKTA.ranking ber-level
+  CRITICAL atau RECOVERY (dan has_score=true). Jika tidak ada, kembalikan array kosong.
+- "risk_flags" HANYA untuk user_id/nama yang ADA di FAKTA. Jangan menambah orang lain.
+- "team_overall_status" cerminkan rata-rata tim (FAKTA.stats.average) & distribusi level.
+- "executive_summary" boleh menyebut FAKTA.stats.average, jumlah per level, dan jumlah belum mengisi.
+
+FAKTA (otoritatif):
+${JSON.stringify(facts, null, 2)}
 
 Output HANYA JSON valid:
 {
-  "executive_summary": "max 200 kata, high-level, bahasa eksekutif",
+  "executive_summary": "max 200 kata, high-level, mengacu angka FAKTA",
   "team_overall_status": "critical|recovery|on_track|high_impact",
   "performance_ranking": [
     {"rank": 1, "user_id": "", "name": "", "role": "", "score": 0, "level": ""}
@@ -198,9 +232,9 @@ Output HANYA JSON valid:
   "risk_flags": [
     {"user_id": "", "name": "", "issue": "", "urgency": "high|medium|low"}
   ],
-  "strategic_recommendations": ["max 3 rekomendasi strategis"],
-  "requires_warning_letter": ["user_id list yang disarankan dapat surat peringatan"]
+  "strategic_recommendations": ["max 3 rekomendasi strategis konkret"],
+  "requires_warning_letter": ["user_id (hanya level CRITICAL/RECOVERY dari FAKTA)"]
 }`;
 
-  return callGemini(prompt, { temperature: 0.4 });
+  return callGemini(prompt, { temperature: 0.3 });
 }

@@ -16,7 +16,7 @@ import {
 } from '../../lib/db';
 import { summarizeForFwss } from '../../lib/gemini';
 import { slotsForRole } from '../../constants/timeSlots';
-import { todayISO, currentWeekId, weekdayDatesOf, nowDate } from '../../lib/utils';
+import { todayISO, currentWeekId, weekdayDatesOf, nowDate, statusFromLevel } from '../../lib/utils';
 
 const FWSS_SLOTS = slotsForRole('FWSS');
 const FWSS_TIME_OPTIONS = FWSS_SLOTS.map((s) => s.time);
@@ -96,6 +96,13 @@ export default function FWSSSummary() {
         })
       );
       const result = await summarizeForFwss({ faData });
+      // Audit: paksa performance_status sesuai daily_level nyata tiap FA.
+      const levelById = Object.fromEntries(faData.map((fa) => [fa.id, fa.score?.daily_level ?? null]));
+      const nameById = Object.fromEntries(faData.map((fa) => [fa.id, fa.name]));
+      (result?.fa_summaries || []).forEach((s) => {
+        const id = s.fa_id || Object.keys(nameById).find((k) => nameById[k] === s.fa_name);
+        if (id && id in levelById) s.performance_status = statusFromLevel(levelById[id]);
+      });
       setAiResult(result);
     } catch (e) {
       setError(e.message || 'Gagal generate summary.');

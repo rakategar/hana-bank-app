@@ -11,7 +11,7 @@ import {
   upsertSummary,
 } from '../../lib/db';
 import { summarizeForBm } from '../../lib/gemini';
-import { todayISO } from '../../lib/utils';
+import { todayISO, statusFromLevel } from '../../lib/utils';
 
 const ACTION_TEMPLATES = (names) => [
   ...names.map((n) => `Coaching FWSS ${n}`),
@@ -88,6 +88,13 @@ export default function BMSummary() {
         })
       );
       const result = await summarizeForBm({ fwssData });
+      // Audit: paksa performance_status sesuai daily_level nyata tiap FWSS.
+      const levelById = Object.fromEntries(fwssData.map((f) => [f.id, f.score?.daily_level ?? null]));
+      const nameById = Object.fromEntries(fwssData.map((f) => [f.id, f.name]));
+      (result?.fwss_summaries || []).forEach((s) => {
+        const id = s.fwss_id || Object.keys(nameById).find((k) => nameById[k] === s.fwss_name);
+        if (id && id in levelById) s.performance_status = statusFromLevel(levelById[id]);
+      });
       setAiResult(result);
     } catch (e) {
       setError(e.message || 'Gagal generate summary.');

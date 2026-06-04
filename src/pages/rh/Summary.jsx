@@ -8,7 +8,7 @@ import { PerformancePill } from '../../components/summary';
 import { FullSpinner, ErrorBox, Spinner } from '../../components/ui';
 import { fetchAllUsers, fetchScore, fetchSummaryFor, fetchDailyActivity } from '../../lib/db';
 import { summarizeForRh } from '../../lib/gemini';
-import { exportUserDetailPDF, exportOverallPPT } from '../../lib/reports';
+import { exportUserDetailPDF, exportOverallPPT, buildTeamStats, lowPerformerIds } from '../../lib/reports';
 import { todayISO, formatDateID, clsx } from '../../lib/utils';
 
 const URGENCY_COLOR = { high: '#EF4444', medium: '#F97316', low: '#3B82F6' };
@@ -67,7 +67,17 @@ export default function RHSummary() {
         const row = await fetchSummaryFor({ supervisorId: bm.id, targetUserId: team.find((u) => u.role === 'FWSS')?.id, date });
         bmSummary = row?.summary_data || null;
       }
-      const res = await summarizeForRh({ allData: { team: scored, bm_summary: bmSummary } });
+
+      // Statistik deterministik = sumber kebenaran (kirim sbg fakta ke AI).
+      const stats = buildTeamStats(scored);
+      const res = await summarizeForRh({ allData: { team: scored, ranking: stats.ranking, stats, bm_summary: bmSummary } });
+
+      // Timpa/saring output AI agar PERSIS sesuai data nyata.
+      res.performance_ranking = stats.ranking;
+      const validIds = new Set(scored.map((u) => u.user_id));
+      const warnSet = new Set(lowPerformerIds(scored));
+      res.requires_warning_letter = (res.requires_warning_letter || []).filter((id) => warnSet.has(id));
+      res.risk_flags = (res.risk_flags || []).filter((r) => validIds.has(r.user_id) || scored.some((u) => u.name === r.name));
       setResult(res);
     } catch (e) {
       setError(e.message || 'Gagal generate summary.');
