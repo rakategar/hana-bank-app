@@ -8,6 +8,42 @@ import { DemoTimeProvider } from './contexts/DemoTimeContext.jsx';
 import { IS_DEMO, CLERK_PUBLISHABLE_KEY, CLERK_KEY_MISSING } from './lib/appMode';
 import './index.css';
 
+// Reload ketika Chrome memulihkan halaman dari bfcache (back/forward).
+// Auth state bisa basi — lebih aman muat ulang daripada tampilkan layar kosong.
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) window.location.reload();
+});
+
+// Error boundary — mencegah layar kosong ketika ada render error di sub-tree.
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen grid place-items-center bg-charcoal p-6">
+          <div className="card max-w-lg text-center space-y-4">
+            <p className="font-display text-xl font-bold text-score-1">Terjadi Kesalahan</p>
+            <p className="text-sm text-text-secondary">{String(this.state.error.message || this.state.error)}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="btn-teal mx-auto"
+            >
+              Muat Ulang Halaman
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Saat mode live tapi VITE_CLERK_PUBLISHABLE_KEY belum diset, ClerkProvider akan
 // gagal init (loading menggantung). Tampilkan pesan setup yang jelas, bukan spinner.
 function ClerkKeyMissing() {
@@ -52,10 +88,12 @@ function Providers({ children }) {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <Providers>
-        <App />
-      </Providers>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Providers>
+          <App />
+        </Providers>
+      </BrowserRouter>
+    </ErrorBoundary>
   </React.StrictMode>
 );
