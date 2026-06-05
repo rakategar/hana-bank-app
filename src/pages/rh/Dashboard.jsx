@@ -13,7 +13,7 @@ import { StatusPill, Select, Modal, Pagination, DashboardSkeleton, Avatar } from
 import { SectionTitle } from '../../components/dashboard';
 import UnderlineTabs from '../../components/login/UnderlineTabs';
 import { fetchAllUsers, fetchUserDaySnapshot, fetchScoreRange, fetchWarningsFrom } from '../../lib/db';
-import { lastNDates, formatDateID, levelInfo, clsx } from '../../lib/utils';
+import { lastNDates, formatDateID, levelInfo, clsx, getFirstName } from '../../lib/utils';
 
 const ROLE_ORDER = { BM: 0, FWSS: 1, FA: 2 };
 const DASHBOARD_TABS = [
@@ -147,7 +147,7 @@ function RegionalHeader({ user, onSummary }) {
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         <h2 className="font-display text-2xl font-extrabold leading-tight text-ink sm:text-3xl">
-          Halo, {user.name.split(' ')[0]}
+          Halo, {getFirstName(user.name)}
         </h2>
         <p className="mt-1 text-sm text-text-secondary">
           {user.branch} &bull; {dateStr}

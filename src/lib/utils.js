@@ -242,6 +242,17 @@ export function isStructuredFilled(data) {
 
 // ── Misc ──────────────────────────────────────────────────
 
+export function getFirstName(name = '') {
+  if (!name) return '';
+  const parts = name.split(' ').filter(Boolean);
+  const titles = ['drs.', 'dr.', 'h.', 'hj.', 'ir.', 'prof.'];
+  let index = 0;
+  while (index < parts.length && titles.includes(parts[index].toLowerCase())) {
+    index++;
+  }
+  return parts[index] || parts[0] || '';
+}
+
 export function initials(name = '') {
   return name
     .split(' ')
