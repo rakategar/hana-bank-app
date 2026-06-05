@@ -6,6 +6,7 @@ import { fetchAllUsers } from '../lib/db';
 import { isSupabaseConfigured } from '../lib/supabase';
 import UserCard from '../components/UserCard';
 import { FullSpinner, ErrorBox } from '../components/ui';
+import { ROLE_LABELS } from '../lib/utils';
 
 const DEMO_PASSWORD = 'icu2026';
 
@@ -20,9 +21,7 @@ const FALLBACK_USERS = [
   { id: 'fa_004', name: 'Rina Marlina', role: 'FA', branch: 'Cabang Jakarta Selatan', supervisor_id: 'fwss_002' },
 ];
 
-const ROLE_ORDER = { RH: 0, BM: 1, FWSS: 2, FA: 3 };
-
-// Login demo: grid 8 user (one-click) + form manual. Dipakai saat VITE_APP_MODE=demo.
+// Login demo: kartu user dikelompokkan per role (one-click) + form manual. Dipakai saat VITE_APP_MODE=demo.
 export default function DemoLogin() {
   const { login, dashboardPath } = useAuth();
   const navigate = useNavigate();
@@ -67,7 +66,10 @@ export default function DemoLogin() {
     doLogin(found);
   }
 
-  const sorted = [...users].sort((a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9));
+  // Kelompokkan per role, urut RH → BM → FWSS → FA.
+  const roleGroups = ['RH', 'BM', 'FWSS', 'FA']
+    .map((role) => ({ role, list: users.filter((u) => u.role === role) }))
+    .filter((g) => g.list.length > 0);
 
   return (
     <>
@@ -82,9 +84,20 @@ export default function DemoLogin() {
         <FullSpinner label="Memuat daftar user..." />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3">
-            {sorted.map((u) => (
-              <UserCard key={u.id} user={u} onClick={doLogin} />
+          <div className="space-y-5">
+            {roleGroups.map(({ role, list }) => (
+              <div key={role}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-display font-bold uppercase tracking-wide text-text-secondary">{ROLE_LABELS[role] || role}</span>
+                  <span className="text-[10px] font-semibold text-hana-teal-700 bg-hana-teal-50 rounded-full px-2 py-0.5">{role}</span>
+                  <span className="flex-1 border-t border-hana-border" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {list.map((u) => (
+                    <UserCard key={u.id} user={u} onClick={doLogin} />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
 

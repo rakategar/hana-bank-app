@@ -84,8 +84,8 @@ const RESULT_SCHEMA = [
 const FA_FORMS = {
   '07:30': [SUP('briefing_with', 'Briefing dengan (FWSS)'), T('daily_target', 'Target Harian', 'mis. 4 appointment'), TA('action_plan', 'Action Plan', 'Rincian rencana aksi hari ini')],
   '08:00': [LIST('leads', 'Daftar Lead Prioritas', [T('nama', 'Nama Nasabah'), T('produk', 'Produk'), S('status', 'Status', ['cold', 'warm', 'hot', 'closing']), S('prioritas', 'Prioritas', ['rendah', 'sedang', 'tinggi'])], 'Tambah Lead', RESULT_SCHEMA)],
-  '09:00': [N('target_appointment', 'Target Appointment'), LIST('calls', 'Daftar Telepon', [T('nama', 'Nama Nasabah'), S('tujuan', 'Tujuan', ['appointment', 'follow-up', 'warm-up', 'konfirmasi'])], 'Tambah Telepon', RESULT_SCHEMA)],
-  '10:00': [N('target_prospect', 'Target Prospek Baru'), LIST('prospects', 'Daftar Prospek', [T('nama', 'Nama'), S('sumber', 'Sumber', ['referral', 'walk-in', 'cold-call', 'eks-nasabah']), T('kontak', 'Kontak')], 'Tambah Prospek', RESULT_SCHEMA)],
+  '09:00': [N('target_appointment', 'Target Appointment'), LIST('calls', 'Daftar Appointment', [T('nama', 'Nama Nasabah'), S('tujuan', 'Tujuan', ['appointment', 'follow-up', 'warm-up', 'konfirmasi'])], 'Tambah Appointment', RESULT_SCHEMA)],
+  '10:00': [N('target_prospect', 'Target Prospecting Baru'), LIST('prospects', 'Daftar Prospecting', [T('nama', 'Nama'), S('sumber', 'Sumber', ['referral', 'walk-in', 'cold-call', 'eks-nasabah']), T('kontak', 'Kontak')], 'Tambah Prospecting', RESULT_SCHEMA)],
   '11:00': [T('nama_nasabah', 'Nama Nasabah'), T('lokasi', 'Lokasi Meeting'), T('produk_presentasi', 'Produk Dipresentasikan'), TA('tujuan_meeting', 'Tujuan Meeting')],
   '12:00': [T('nama_nasabah', 'Nama Nasabah'), T('jam_meeting', 'Jam Meeting Berikutnya'), TA('kelengkapan_dokumen', 'Kelengkapan Dokumen / Aplikasi')],
   '13:00': [T('pencapaian_siang', 'Pencapaian s/d Siang'), T('gap_target', 'Gap dari Target'), TA('recovery_action', 'Recovery Action')],
@@ -97,33 +97,33 @@ const FA_FORMS = {
 };
 
 const FWSS_FORMS = {
-  '07:30': [SUB('fa_arahan', 'FA yang Diarahkan', true), T('target_tim', 'Target Tim'), TA('focus_recovery', 'Fokus Recovery')],
+  '07:30': [T('target_tim', 'Target Tim'), LIST('fa_arahan', 'Arahan per FA', [SUB('fa_id', 'FA'), TA('arahan', 'Arahan & Fokus Recovery')], 'Tambah FA', RESULT_SCHEMA)],
   '08:00': [LIST('fa_pipeline', 'Kontrol Pipeline FA', [SUB('fa_id', 'FA'), T('status_pipeline', 'Status Pipeline'), T('tindakan', 'Tindakan')], 'Tambah FA', RESULT_SCHEMA)],
-  '09:00': [SUB('fa_id', 'FA'), TA('recovery_plan', 'Recovery Plan'), T('target_aktivasi', 'Target Aktivasi')],
+  '09:00': [LIST('fa_recovery', 'Aktivasi per FA', [SUB('fa_id', 'FA'), TA('recovery_plan', 'Recovery Plan'), T('target_aktivasi', 'Target Aktivasi')], 'Tambah FA', RESULT_SCHEMA)],
   '10:00': [T('sumber_opportunity', 'Sumber Opportunity'), LIST('leads', 'Lead Cabang', [T('nama', 'Nama Lead'), SUB('fa_ditugaskan', 'FA Ditugaskan')], 'Tambah Lead', RESULT_SCHEMA)],
-  '11:00': [SUB('fa_id', 'FA'), TA('kasus', 'Kasus'), TA('solusi', 'Solusi')],
-  '12:00': [SUB('fa_id', 'FA'), T('topik_coaching', 'Topik Coaching'), T('target_recovery', 'Target Recovery')],
-  '13:00': [SUB('fa_id', 'FA'), T('nama_nasabah', 'Nama Nasabah'), T('produk', 'Produk'), TA('tujuan_joint', 'Tujuan Joint Meeting')],
+  '11:00': [LIST('fa_cases', 'Review Kasus per FA', [SUB('fa_id', 'FA'), TA('kasus', 'Kasus'), TA('solusi', 'Solusi')], 'Tambah FA', RESULT_SCHEMA)],
+  '12:00': [LIST('fa_coaching', 'Coaching per FA', [SUB('fa_id', 'FA'), T('topik_coaching', 'Topik Coaching'), T('target_recovery', 'Target Recovery')], 'Tambah FA', RESULT_SCHEMA)],
+  '13:00': [LIST('fa_joint', 'Joint Meeting per FA', [SUB('fa_id', 'FA'), T('nama_nasabah', 'Nama Nasabah'), T('produk', 'Produk'), TA('tujuan_joint', 'Tujuan Joint Meeting')], 'Tambah FA', RESULT_SCHEMA)],
   '14:00': [LIST('fa_status', 'Monitoring FA', [SUB('fa_id', 'FA'), T('pencapaian', 'Pencapaian'), T('intervensi', 'Intervensi')], 'Tambah FA', RESULT_SCHEMA)],
   '15:00': [LIST('fa_push', 'Closing Push FA', [SUB('fa_id', 'FA'), T('target_closing', 'Target Closing'), T('support', 'Bentuk Support')], 'Tambah FA', RESULT_SCHEMA)],
-  '16:00': [SUB('fa_cek', 'FA yang Dicek', true), TA('catatan_disiplin', 'Catatan Disiplin CRM')],
-  '17:00': [T('topik_clinic', 'Topik Sales Clinic'), SUB('fa_peserta', 'FA Peserta', true), TA('poin_reinforcement', 'Poin Reinforcement')],
-  '18:00': [TA('pencapaian_tim', 'Pencapaian Tim'), LIST('fa_accountability', 'Akuntabilitas FA', [SUB('fa_id', 'FA'), T('hasil', 'Hasil')], 'Tambah FA', RESULT_SCHEMA), TA('arah_besok', 'Arah Besok')],
+  '16:00': [LIST('fa_cek', 'Cek Disiplin per FA', [SUB('fa_id', 'FA'), TA('catatan_disiplin', 'Catatan Disiplin CRM')], 'Tambah FA', RESULT_SCHEMA)],
+  '17:00': [T('topik_clinic', 'Topik Sales Clinic'), TA('poin_reinforcement', 'Poin Reinforcement'), LIST('fa_peserta', 'FA Peserta', [SUB('fa_id', 'FA'), T('catatan', 'Catatan')], 'Tambah FA', RESULT_SCHEMA)],
+  '18:00': [TA('pencapaian_tim', 'Pencapaian Tim'), TA('arah_besok', 'Arah Besok'), LIST('fa_accountability', 'Akuntabilitas FA', [SUB('fa_id', 'FA'), T('hasil', 'Hasil')], 'Tambah FA', RESULT_SCHEMA)],
 };
 
 const BM_FORMS = {
-  '07:30': [SUB('fwss_alignment', 'FWSS Alignment', true), TA('arah_bisnis', 'Arah Bisnis'), T('kpi_focus', 'KPI Focus')],
+  '07:30': [TA('arah_bisnis', 'Arah Bisnis'), T('kpi_focus', 'KPI Focus'), LIST('fwss_alignment', 'Alignment per FWSS', [SUB('fwss_id', 'FWSS'), T('catatan', 'Catatan Alignment')], 'Tambah FWSS', RESULT_SCHEMA)],
   '08:00': [LIST('fwss_pipeline', 'Monitoring Pipeline FWSS', [SUB('fwss_id', 'FWSS'), T('pipeline_key', 'Pipeline Kunci'), T('support_needed', 'Support Dibutuhkan')], 'Tambah FWSS', RESULT_SCHEMA)],
-  '09:00': [SUB('target_support', 'FWSS yang Didukung'), TA('bentuk_support', 'Bentuk Support')],
-  '10:00': [TA('opportunity', 'Business Opportunity'), T('koordinasi_dengan', 'Koordinasi Dengan'), TA('tindak_lanjut', 'Tindak Lanjut')],
-  '11:00': [SUB('fwss_id', 'FWSS'), T('nama_nasabah', 'Nama Nasabah'), T('produk', 'Produk'), TA('bentuk_support', 'Bentuk Support')],
-  '12:00': [T('topik_reinforcement', 'Topik Reinforcement'), SUB('target_fwss', 'Target FWSS', true), TA('pesan_utama', 'Pesan Utama')],
-  '13:00': [SUB('fwss_id', 'FWSS'), T('nama_nasabah', 'Nama Nasabah'), TA('support_closing', 'Support Closing')],
+  '09:00': [LIST('fwss_support', 'Support per FWSS', [SUB('fwss_id', 'FWSS'), TA('bentuk_support', 'Bentuk Support')], 'Tambah FWSS', RESULT_SCHEMA)],
+  '10:00': [LIST('opportunities', 'Daftar Opportunity', [TA('opportunity', 'Business Opportunity'), T('koordinasi_dengan', 'Koordinasi Dengan'), TA('tindak_lanjut', 'Tindak Lanjut')], 'Tambah Opportunity', RESULT_SCHEMA)],
+  '11:00': [LIST('hpc_cases', 'Support HPC per FWSS', [SUB('fwss_id', 'FWSS'), T('nama_nasabah', 'Nama Nasabah'), T('produk', 'Produk'), TA('bentuk_support', 'Bentuk Support')], 'Tambah FWSS', RESULT_SCHEMA)],
+  '12:00': [T('topik_reinforcement', 'Topik Reinforcement'), TA('pesan_utama', 'Pesan Utama'), LIST('target_fwss', 'Target FWSS', [SUB('fwss_id', 'FWSS'), T('catatan', 'Catatan')], 'Tambah FWSS', RESULT_SCHEMA)],
+  '13:00': [LIST('fwss_joint', 'Joint Meeting per FWSS', [SUB('fwss_id', 'FWSS'), T('nama_nasabah', 'Nama Nasabah'), TA('support_closing', 'Support Closing')], 'Tambah FWSS', RESULT_SCHEMA)],
   '14:00': [TA('monitoring_summary', 'Ringkasan Monitoring'), LIST('fwss_recovery', 'Recovery FWSS', [SUB('fwss_id', 'FWSS'), T('gap', 'Gap'), T('support', 'Support')], 'Tambah FWSS', RESULT_SCHEMA)],
-  '15:00': [TA('kasus_eskalasi', 'Kasus Eskalasi'), SUB('fwss_id', 'FWSS'), TA('tindakan', 'Tindakan')],
-  '16:00': [SUB('validasi_fwss', 'FWSS Divalidasi', true), TA('temuan', 'Temuan')],
-  '17:00': [T('topik_review', 'Topik Review'), SUB('peserta', 'Peserta FWSS', true), TA('poin_utama', 'Poin Utama')],
-  '18:00': [TA('pencapaian_hari', 'Pencapaian Hari Ini'), T('gap_target', 'Gap Target'), TA('planning_besok', 'Planning Besok')],
+  '15:00': [LIST('eskalasi', 'Eskalasi per FWSS', [SUB('fwss_id', 'FWSS'), TA('kasus_eskalasi', 'Kasus Eskalasi'), TA('tindakan', 'Tindakan')], 'Tambah FWSS', RESULT_SCHEMA)],
+  '16:00': [LIST('validasi_fwss', 'Validasi per FWSS', [SUB('fwss_id', 'FWSS'), TA('temuan', 'Temuan')], 'Tambah FWSS', RESULT_SCHEMA)],
+  '17:00': [T('topik_review', 'Topik Review'), TA('poin_utama', 'Poin Utama'), LIST('peserta', 'Peserta FWSS', [SUB('fwss_id', 'FWSS'), T('catatan', 'Catatan')], 'Tambah FWSS', RESULT_SCHEMA)],
+  '18:00': [TA('pencapaian_hari', 'Pencapaian Hari Ini'), T('gap_target', 'Gap Target'), TA('planning_besok', 'Planning Besok'), LIST('fwss_accountability', 'Akuntabilitas FWSS', [SUB('fwss_id', 'FWSS'), T('hasil', 'Hasil')], 'Tambah FWSS', RESULT_SCHEMA)],
 };
 
 function formsForRole(role) {

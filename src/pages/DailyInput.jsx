@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Brain, CalendarOff, CalendarPlus, ChevronDown, ChevronUp } from 'lucide-react';
+import { CalendarOff, CalendarPlus, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import ActivitySlot from '../components/ActivitySlot';
@@ -402,7 +402,7 @@ export default function DailyInput() {
           {/* Footer: hanya AI scoring */}
           <div className="sticky bottom-4">
             <button onClick={handleSubmitScore} disabled={Boolean(busy)} className="btn-pink w-full">
-              {busy === 'scoring' ? <Spinner size={18} className="text-white" /> : <Brain size={18} />}
+              {busy === 'scoring' && <Spinner size={18} className="text-white" />}
               {busy === 'scoring' ? 'AI sedang menilai...' : 'Submit & Minta Penilaian AI'}
             </button>
           </div>
