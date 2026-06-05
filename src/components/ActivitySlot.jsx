@@ -61,23 +61,26 @@ export default function ActivitySlot({
   }
 
   const statusColor = STATUS_OPTIONS.find((s) => s.value === slot.activity_status)?.color;
-  const accent = isCompleted ? statusColor : isClosed ? '#EF4444' : isUpcoming ? '#94A3B8' : statusColor;
 
   // Format "07:30 – 08:00"
   const timeLabel = slot.endTime ? `${slot.time} – ${slot.endTime}` : slot.time;
 
   return (
     <div
-      className={clsx('card relative', isUpcoming && 'opacity-95')}
-      style={accent ? { borderLeftColor: accent, borderLeftWidth: 3 } : undefined}
+      className={clsx('relative rounded-2xl border border-white/80 bg-white/90 p-4 shadow-card backdrop-blur-xl', isUpcoming && 'opacity-95')}
     >
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="flex items-baseline gap-2 min-w-0">
-          <span className="font-display font-bold text-hana-teal-700 text-base">{timeLabel}</span>
-          <span className="text-sm font-semibold text-ink leading-tight truncate">{slot.label}</span>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="mb-1.5 flex flex-wrap items-center gap-2">
+            <span className="rounded-lg bg-hana-teal-50 px-2.5 py-1 font-display text-sm font-bold text-hana-teal-700">{slot.endTime ? `${slot.time} - ${slot.endTime}` : slot.time}</span>
+            <span className={clsx('badge', isOpen ? 'border-hana-teal-100 bg-hana-teal-50 text-hana-teal-700' : isClosed ? 'border-score-1/25 bg-score-1/10 text-score-1' : 'border-hana-border bg-elevated text-text-secondary')}>
+              {isOpen ? 'Terbuka' : isClosed ? 'Tertutup' : 'Belum Waktu'}
+            </span>
+          </div>
+          <p className="truncate text-sm font-bold text-ink">{slot.label}</p>
         </div>
         {slot.extra && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-hana-pink-50 text-hana-pink-600 shrink-0">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-hana-pink-100 bg-hana-pink-50 px-2 py-1 text-[10px] font-bold text-hana-pink-600">
             <Sparkles size={11} /> Tambahan
           </span>
         )}
@@ -85,24 +88,24 @@ export default function ActivitySlot({
 
       {/* Banner status jendela waktu */}
       {isUpcoming ? (
-        <div className="mb-3 flex items-center gap-2 text-xs rounded-lg bg-elevated border border-hana-border px-3 py-2 text-text-secondary">
+        <div className="mb-3 flex items-center gap-2 rounded-xl border border-hana-border bg-elevated px-3 py-2 text-xs text-text-secondary">
           <Lock size={14} /> Belum waktunya — terbuka pukul <b>{startLabel}</b>
         </div>
       ) : isCompleted ? (
-        <div className="mb-3 flex items-center gap-2 text-xs rounded-lg bg-score-4/10 border border-score-4/30 px-3 py-2 text-score-4">
+        <div className="mb-3 flex items-center gap-2 rounded-xl border border-score-4/30 bg-score-4/10 px-3 py-2 text-xs text-score-4">
           <CheckCircle2 size={14} className="shrink-0" />
           <span>Slot berhasil diselesaikan{slot.activity_status === 'partial' ? ' (sebagian)' : ''}.</span>
         </div>
       ) : isClosed ? (
-        <div className="mb-3 flex items-start gap-2 text-xs rounded-lg bg-score-1/10 border border-score-1/30 px-3 py-2 text-score-1">
+        <div className="mb-3 flex items-start gap-2 rounded-xl border border-score-1/30 bg-score-1/10 px-3 py-2 text-xs text-score-1">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
           <span>Slot tertutup (tutup {endLabel}) — tercatat <b>tidak selesai</b>. Anda tetap dapat memberi alasan &amp; bukti di bawah.</span>
         </div>
       ) : null}
 
       {/* Panel RENCANA (read-only) — dari Weekly Plan */}
-      <div className="mb-3 rounded-lg bg-elevated border border-hana-border px-3 py-2.5">
-        <p className="flex items-center gap-1.5 text-[11px] font-semibold text-text-secondary mb-1.5">
+      <div className="mb-3 rounded-2xl border border-hana-border bg-elevated/70 px-3 py-2.5">
+        <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-text-secondary">
           <ClipboardList size={13} /> Rencana
         </p>
         {hasSchema ? (
@@ -111,8 +114,8 @@ export default function ActivitySlot({
           <dl className="space-y-1">
             {Object.entries(slot.planned_data).map(([k, v]) =>
               v ? (
-                <div key={k} className="text-xs">
-                  <dt className="font-medium text-text-secondary capitalize">{k.replace(/_/g, ' ')}</dt>
+                <div key={k} className="rounded-xl border border-hana-border/70 bg-white/70 px-3 py-2 text-xs">
+                  <dt className="font-semibold text-text-secondary capitalize">{k.replace(/_/g, ' ')}</dt>
                   <dd className="text-ink">{String(v)}</dd>
                 </div>
               ) : null
@@ -152,7 +155,7 @@ export default function ActivitySlot({
             value={slot.actual || ''}
             onChange={(e) => update({ actual: e.target.value })}
             placeholder={canEditActual ? 'Apa yang benar-benar dilakukan di slot ini?' : '—'}
-            className="w-full text-sm px-3 py-2 resize-y disabled:bg-elevated disabled:cursor-not-allowed"
+            className="w-full resize-y rounded-xl border-hana-border bg-white/95 px-3.5 py-2.5 text-sm shadow-sm disabled:bg-elevated disabled:cursor-not-allowed"
           />
         </>
       ) : null}
@@ -169,7 +172,7 @@ export default function ActivitySlot({
                 disabled={!canEditActual}
                 onClick={() => update({ activity_status: value })}
                 className={clsx(
-                  'flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold border transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                  'flex items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60',
                   active ? 'text-white' : 'text-text-secondary border-hana-border hover:border-text-secondary'
                 )}
                 style={active ? { backgroundColor: `${color}26`, borderColor: color, color } : undefined}
@@ -193,7 +196,7 @@ export default function ActivitySlot({
               value={slot.notes || ''}
               onChange={(e) => update({ notes: e.target.value })}
               placeholder={isClosed ? 'Jelaskan kenapa slot ini terlewat...' : 'Catatan tambahan...'}
-              className="w-full text-sm px-3 py-2 resize-y"
+              className="w-full resize-y rounded-xl border-hana-border bg-white/95 px-3.5 py-2.5 text-sm shadow-sm"
             />
           </div>
 
@@ -211,14 +214,14 @@ export default function ActivitySlot({
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  <img src={slot.image_url} alt="bukti" className="h-16 w-16 rounded-lg object-cover border border-hana-border" />
+                  <img src={slot.image_url} alt="bukti" className="h-16 w-16 rounded-xl border border-hana-border object-cover" />
                   <button type="button" onClick={() => update({ image_path: null, image_url: null })} className="text-xs text-score-1 hover:underline">
                     Hapus
                   </button>
                 </div>
               )
             ) : (
-              <label className="inline-flex items-center gap-2 cursor-pointer btn-ghost !py-2 !px-3 text-xs w-fit">
+              <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-hana-border bg-white/80 px-3 py-2 text-xs font-bold text-text-secondary shadow-sm transition-colors hover:bg-white hover:text-ink">
                 {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
                 {uploading ? 'Mengupload...' : 'Upload File'}
                 <input
@@ -244,7 +247,7 @@ export default function ActivitySlot({
               <FileText size={16} /> Lihat dokumen (PDF)
             </a>
           ) : (
-            <img src={slot.image_url} alt="bukti" className="h-16 w-16 rounded-lg object-cover border border-hana-border" />
+            <img src={slot.image_url} alt="bukti" className="h-16 w-16 rounded-xl border border-hana-border object-cover" />
           )}
         </div>
       )}
@@ -256,7 +259,7 @@ export default function ActivitySlot({
             type="button"
             onClick={onSave}
             disabled={saving || isUpcoming}
-            className="btn-teal !py-2 !px-4 text-xs disabled:opacity-60"
+            className="btn-teal !px-4 !py-2 text-xs disabled:opacity-60"
           >
             {saving ? <Spinner size={13} className="text-white" /> : <Save size={13} />}
             {saving ? 'Menyimpan...' : 'Simpan Slot'}

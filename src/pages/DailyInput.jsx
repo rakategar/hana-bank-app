@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Brain, CalendarOff, CalendarPlus, ChevronDown, ChevronUp } from 'lucide-react';
+import { Brain, CalendarOff, CalendarPlus, ChevronDown, ChevronUp, Clock3, CalendarDays, FileCheck2, Layers3, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import ActivitySlot from '../components/ActivitySlot';
 import ExtraPlanModal from '../components/ExtraPlanModal';
 import { toast } from 'react-hot-toast';
-import { FullSpinner, Spinner } from '../components/ui';
+import { Spinner } from '../components/ui';
 import { emptyPlanByDay, normalizePlanByDay, formSchemaFor } from '../constants/timeSlots';
 import {
   fetchWeeklyPlan,
@@ -137,6 +137,107 @@ function validateSlot(s, formSchema) {
     return null;
   }
   return 'Pilih status slot terlebih dahulu (Done / Partial / Not Done).';
+}
+
+function DailyStat({ label, value, helper, icon: Icon, tone = 'default' }) {
+  const warning = tone === 'warning';
+  return (
+    <div className="rounded-2xl border border-white/80 bg-white/80 p-4 shadow-card backdrop-blur-xl">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</p>
+        <span className={warning ? 'grid h-9 w-9 place-items-center rounded-xl bg-score-2/10 text-score-2' : 'grid h-9 w-9 place-items-center rounded-xl bg-hana-teal-50 text-hana-teal-700'}>
+          <Icon size={17} />
+        </span>
+      </div>
+      <p className="font-display text-3xl font-extrabold leading-none text-ink">{value}</p>
+      <p className="mt-2 text-xs leading-relaxed text-text-secondary">{helper}</p>
+    </div>
+  );
+}
+
+function DailyHeader({ dayKey, date, now, openCount, onAddExtra, disabled }) {
+  return (
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        <h2 className="font-display text-2xl font-extrabold leading-tight text-ink sm:text-3xl">Input Aktivitas Hari Ini</h2>
+        <p className="mt-1 text-sm text-text-secondary">Catat realisasi aktivitas sesuai slot waktu yang sedang berjalan.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <span className="badge-neutral"><CalendarDays size={13} /> {dayLabel(dayKey)}, {formatDateID(date)}</span>
+          <span className="badge-teal"><Clock3 size={13} /> {fmtClock(now)}</span>
+          <span className="badge-neutral">{openCount} slot terbuka</span>
+        </div>
+      </div>
+      <button onClick={onAddExtra} disabled={disabled} className="btn-ghost border-hana-teal-500/40 text-hana-teal-700 sm:w-auto">
+        <CalendarPlus size={16} /> Tambah Rencana Tambahan
+      </button>
+    </div>
+  );
+}
+
+function GeminiNotice() {
+  return (
+    <div className="rounded-2xl border border-score-2/25 bg-score-2/10 p-4">
+      <p className="flex items-center gap-2 text-sm font-bold text-score-2">
+        <AlertTriangle size={16} /> Penilaian AI belum aktif
+      </p>
+      <p className="mt-1.5 text-xs leading-relaxed text-text-secondary">
+        `VITE_GEMINI_API_KEY` belum diset. Aktivitas tetap dapat disimpan, tetapi skor AI tidak akan tersedia.
+      </p>
+    </div>
+  );
+}
+
+function DailyInputSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-3">
+          <div className="skeleton h-8 w-64" />
+          <div className="skeleton h-4 w-96 max-w-full" />
+          <div className="flex gap-2">
+            <div className="skeleton h-7 w-40 rounded-full" />
+            <div className="skeleton h-7 w-24 rounded-full" />
+            <div className="skeleton h-7 w-28 rounded-full" />
+          </div>
+        </div>
+        <div className="skeleton h-10 w-48 rounded-xl" />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="card space-y-3 p-4">
+            <div className="flex items-center justify-between">
+              <div className="skeleton h-3 w-24" />
+              <div className="skeleton h-9 w-9 rounded-xl" />
+            </div>
+            <div className="skeleton h-8 w-16" />
+            <div className="skeleton h-3 w-32" />
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="card space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-2">
+                <div className="skeleton h-7 w-28 rounded-lg" />
+                <div className="skeleton h-4 w-56 max-w-full" />
+              </div>
+              <div className="skeleton h-6 w-20 rounded-full" />
+            </div>
+            <div className="skeleton h-20 w-full rounded-xl" />
+            <div className="grid grid-cols-3 gap-2">
+              <div className="skeleton h-9 rounded-xl" />
+              <div className="skeleton h-9 rounded-xl" />
+              <div className="skeleton h-9 rounded-xl" />
+            </div>
+            <div className="skeleton h-10 w-28 rounded-xl ml-auto" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function DailyInput() {
@@ -291,14 +392,35 @@ export default function DailyInput() {
 
   const openSlots = viewSlots.filter((s) => slotWindowState(date, s.time, s.endTime) === 'open');
   const otherSlots = viewSlots.filter((s) => slotWindowState(date, s.time, s.endTime) !== 'open');
+  const engagedSlots = viewSlots.filter(slotEngaged).length;
+  const closedSlots = viewSlots.filter((s) => slotWindowState(date, s.time, s.endTime) === 'closed').length;
 
   return (
     <Layout title="Input Aktivitas Hari Ini">
       {loading ? (
-        <FullSpinner label="Memuat aktivitas..." />
+        <DailyInputSkeleton />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          <DailyHeader
+            dayKey={dayKey}
+            date={date}
+            now={now}
+            openCount={openSlots.length}
+            onAddExtra={() => setShowExtraModal(true)}
+            disabled={Boolean(busy)}
+          />
 
+          <div className="grid gap-4 sm:grid-cols-3">
+            <DailyStat label="Slot Terbuka" value={openSlots.length} helper="Slot yang bisa diisi saat ini." icon={Clock3} />
+            <DailyStat label="Aktivitas Terisi" value={`${engagedSlots}/${viewSlots.length}`} helper="Slot dengan status, hasil, atau catatan." icon={FileCheck2} />
+            <DailyStat label="Slot Tertutup" value={closedSlots} helper="Slot yang sudah melewati waktu input." icon={Layers3} tone={closedSlots > 0 ? 'warning' : 'default'} />
+          </div>
+
+          {!isGeminiConfigured && <GeminiNotice />}
+
+          {savedAt && <p className="text-[11px] font-medium text-text-muted">Draft tersimpan - {savedAt.toLocaleTimeString('id-ID')}</p>}
+
+          <div className="hidden">
           <div className="card flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm">
               <span className="font-semibold">{dayLabel(dayKey)}</span>
@@ -321,6 +443,8 @@ export default function DailyInput() {
           </div>
 
           {savedAt && <p className="text-[11px] text-text-muted -mt-1">Draft tersimpan · {savedAt.toLocaleTimeString('id-ID')}</p>}
+
+          </div>
 
           {/* Slot yang sedang terbuka */}
           {openSlots.length > 0 ? (
@@ -348,8 +472,10 @@ export default function DailyInput() {
               })}
             </div>
           ) : (
-            <div className="card text-center py-8 text-text-muted text-sm">
-              Belum ada slot yang terbuka sekarang.
+            <div className="card py-10 text-center">
+              <Clock3 size={32} className="mx-auto mb-3 text-text-muted" />
+              <p className="font-display text-lg font-extrabold text-ink">Belum ada slot yang terbuka</p>
+              <p className="mt-1 text-sm text-text-secondary">Slot berikutnya akan aktif sesuai jadwal waktu hari ini.</p>
             </div>
           )}
 
@@ -358,7 +484,7 @@ export default function DailyInput() {
             <div>
               <button
                 onClick={() => setShowOthers((p) => !p)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-text-secondary border border-hana-border rounded-lg hover:bg-elevated transition-colors"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-hana-border bg-white/80 py-3 text-xs font-bold text-text-secondary shadow-sm transition-colors hover:bg-white hover:text-ink"
               >
                 {showOthers ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 {showOthers ? 'Sembunyikan' : `Tampilkan ${otherSlots.length} slot lainnya`}
@@ -393,7 +519,7 @@ export default function DailyInput() {
           )}
 
           {/* Footer: hanya AI scoring */}
-          <div className="sticky bottom-4">
+          <div className="sticky bottom-4 z-10">
             <button onClick={handleSubmitScore} disabled={Boolean(busy)} className="btn-pink w-full">
               {busy === 'scoring' ? <Spinner size={18} className="text-white" /> : <Brain size={18} />}
               {busy === 'scoring' ? 'AI sedang menilai...' : 'Submit & Minta Penilaian AI'}
