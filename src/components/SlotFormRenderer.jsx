@@ -1,4 +1,5 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, ChevronDown, Plus, Search, Trash2, X } from 'lucide-react';
 import { clsx } from '../lib/utils';
 
 // Renderer form schema-driven. Dipakai di 3 tempat:
@@ -30,7 +31,8 @@ function userName(id, users) {
   return u ? u.name : id;
 }
 
-const INPUT_CLS = 'w-full px-3 py-2 text-sm disabled:bg-elevated disabled:cursor-not-allowed';
+const INPUT_CLS = 'w-full rounded-xl border-hana-border bg-white/95 px-3.5 py-2.5 text-sm text-ink shadow-sm placeholder:text-text-muted/75 focus:border-hana-teal-500 focus:bg-white disabled:bg-elevated disabled:text-text-muted disabled:cursor-not-allowed';
+const USER_RESULT_LIMIT = 8;
 
 export default function SlotFormRenderer({
   schema = [],
@@ -54,11 +56,11 @@ export default function SlotFormRenderer({
       return <p className="text-xs text-text-muted italic">Belum ada rencana untuk slot ini.</p>;
     }
     return (
-      <dl className="space-y-1.5">
+      <dl className="space-y-2">
         {filled.map((f) => (
-          <div key={f.key} className="text-xs">
-            <dt className="font-medium text-text-secondary">{f.label}</dt>
-            <dd className="text-ink">{renderReadValue(f, value[f.key], users)}</dd>
+          <div key={f.key} className="rounded-xl border border-hana-border/70 bg-white/70 px-3 py-2 text-xs">
+            <dt className="font-semibold text-text-secondary">{f.label}</dt>
+            <dd className="mt-0.5 text-ink">{renderReadValue(f, value[f.key], users)}</dd>
           </div>
         ))}
       </dl>
@@ -152,7 +154,7 @@ function FieldEditor({ field, value, onChange, users, disabled }) {
     return <ListField field={field} value={value} onChange={onChange} users={users} disabled={disabled} />;
   }
   return (
-    <div>
+    <div className="space-y-1.5">
       <label className="label">{field.label}</label>
       <InputControl field={field} value={value} onChange={onChange} users={users} disabled={disabled} />
     </div>
@@ -166,7 +168,7 @@ function InputControl({ field, value, onChange, users, disabled }) {
         <textarea
           rows={field.rows || 2}
           disabled={disabled}
-          className={clsx(INPUT_CLS, 'resize-y')}
+          className={clsx(INPUT_CLS, 'min-h-[92px] resize-y leading-relaxed')}
           value={value || ''}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder || ''}
@@ -216,37 +218,22 @@ function UserSelect({ field, value, onChange, users, disabled }) {
 
   if (cands.length === 0) {
     return (
-      <p className="text-[11px] text-text-muted italic px-3 py-2 rounded-lg border border-dashed border-hana-border">
+      <p className="rounded-xl border border-dashed border-hana-border bg-elevated/50 px-3 py-2 text-[11px] italic text-text-muted">
         Belum ada {field.source === 'supervisor' ? 'atasan' : 'bawahan'} terdaftar.
       </p>
     );
   }
 
-  if (field.multi) {
-    const sel = Array.isArray(value) ? value : [];
-    const toggle = (id) => onChange(sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]);
-    return (
-      <div className="flex flex-wrap gap-1.5">
-        {cands.map((c) => {
-          const active = sel.includes(c.id);
-          return (
-            <button
-              key={c.id}
-              type="button"
-              disabled={disabled}
-              onClick={() => toggle(c.id)}
-              className={clsx(
-                'px-2.5 py-1 rounded-full text-xs font-medium border transition-colors disabled:opacity-60 disabled:cursor-not-allowed',
-                active ? 'bg-hana-teal-500 text-white border-hana-teal-500' : 'bg-white text-text-secondary border-hana-border hover:border-hana-teal-500'
-              )}
-            >
-              {c.name}
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
+  return (
+    <UserCombobox
+      options={cands}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      multi={field.multi}
+      placeholder={`Cari ${field.source === 'supervisor' ? 'atasan' : 'bawahan'}...`}
+    />
+  );
 
   return (
     <select disabled={disabled} className={INPUT_CLS} value={value || ''} onChange={(e) => onChange(e.target.value)}>
@@ -259,6 +246,164 @@ function UserSelect({ field, value, onChange, users, disabled }) {
 }
 
 // List field editable penuh (mode plan — boleh tambah/hapus baris)
+function userSearchText(user) {
+  return [user?.name, user?.role, user?.branch, user?.id].filter(Boolean).join(' ').toLowerCase();
+}
+
+function UserAvatar({ user, selected }) {
+  const initials = (user?.name || user?.role || '?')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+
+  return (
+    <span className={clsx('grid h-8 w-8 shrink-0 place-items-center rounded-xl text-[11px] font-extrabold', selected ? 'bg-hana-teal-600 text-white' : 'bg-hana-teal-50 text-hana-teal-700')}>
+      {initials}
+    </span>
+  );
+}
+
+function UserCombobox({ options, value, onChange, disabled, multi = false, placeholder = 'Cari user...' }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const rootRef = useRef(null);
+  const selectedIds = multi ? (Array.isArray(value) ? value : []) : (value ? [value] : []);
+  const selectedUsers = selectedIds.map((id) => options.find((user) => user.id === id)).filter(Boolean);
+  const normalizedQuery = query.trim().toLowerCase();
+
+  const filteredOptions = useMemo(() => {
+    const selected = new Set(selectedIds);
+    return options
+      .filter((user) => !multi || !selected.has(user.id))
+      .filter((user) => !normalizedQuery || userSearchText(user).includes(normalizedQuery))
+      .slice(0, USER_RESULT_LIMIT);
+  }, [multi, normalizedQuery, options, selectedIds]);
+
+  useEffect(() => {
+    function handlePointerDown(event) {
+      if (!rootRef.current || rootRef.current.contains(event.target)) return;
+      setOpen(false);
+      setQuery('');
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, []);
+
+  function selectUser(user) {
+    if (disabled) return;
+    if (multi) {
+      onChange([...selectedIds, user.id]);
+      setQuery('');
+      setOpen(true);
+      return;
+    }
+
+    onChange(user.id);
+    setQuery('');
+    setOpen(false);
+  }
+
+  function removeUser(id) {
+    if (disabled) return;
+    if (multi) onChange(selectedIds.filter((selectedId) => selectedId !== id));
+    else onChange('');
+  }
+
+  const singleSelected = !multi ? selectedUsers[0] : null;
+
+  return (
+    <div ref={rootRef} className="relative">
+      <div
+        className={clsx(
+          'min-h-[44px] rounded-xl border border-hana-border bg-white/95 px-3 py-2 shadow-sm transition-colors',
+          open && 'border-hana-teal-500 bg-white',
+          disabled && 'cursor-not-allowed bg-elevated text-text-muted'
+        )}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <Search size={15} className="shrink-0 text-text-muted" />
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+            {multi && selectedUsers.map((user) => (
+              <span key={user.id} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-hana-teal-100 bg-hana-teal-50 px-2 py-1 text-xs font-semibold text-hana-teal-700">
+                <span className="max-w-[140px] truncate">{user.name}</span>
+                <button type="button" onClick={() => removeUser(user.id)} disabled={disabled} className="rounded-full p-0.5 hover:bg-hana-teal-100">
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+
+            {!multi && singleSelected && !open ? (
+              <button type="button" disabled={disabled} onClick={() => setOpen(true)} className="min-w-0 flex-1 text-left text-sm font-semibold text-ink">
+                <span className="block truncate">{singleSelected.name}</span>
+              </button>
+            ) : (
+              <input
+                type="text"
+                disabled={disabled}
+                value={query}
+                onFocus={() => setOpen(true)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setOpen(true);
+                }}
+                placeholder={singleSelected ? singleSelected.name : placeholder}
+                className="min-w-[120px] flex-1 border-0 bg-transparent p-0 text-sm shadow-none placeholder:text-text-muted/80 focus:border-0 focus:bg-transparent"
+              />
+            )}
+          </div>
+
+          {singleSelected && !disabled && (
+            <button type="button" onClick={() => removeUser(singleSelected.id)} className="shrink-0 rounded-lg p-1 text-text-muted hover:bg-elevated hover:text-ink">
+              <X size={14} />
+            </button>
+          )}
+          <button type="button" disabled={disabled} onClick={() => setOpen((next) => !next)} className="shrink-0 rounded-lg p-1 text-text-muted hover:bg-elevated hover:text-ink disabled:cursor-not-allowed">
+            <ChevronDown size={15} className={clsx('transition-transform', open && 'rotate-180')} />
+          </button>
+        </div>
+      </div>
+
+      {open && !disabled && (
+        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-2xl border border-hana-border bg-white shadow-float">
+          {filteredOptions.length > 0 ? (
+            <div className="max-h-72 overflow-y-auto p-1.5">
+              {filteredOptions.map((user) => {
+                const selected = selectedIds.includes(user.id);
+                return (
+                  <button
+                    key={user.id}
+                    type="button"
+                    onClick={() => selectUser(user)}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-hana-teal-50"
+                  >
+                    <UserAvatar user={user} selected={selected} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-ink">{user.name}</span>
+                      <span className="block truncate text-xs text-text-muted">{user.role}{user.branch ? ` - ${user.branch}` : ''}</span>
+                    </span>
+                    {selected && <Check size={16} className="shrink-0 text-hana-teal-600" />}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="px-3 py-4 text-center text-xs text-text-muted">Tidak ada user yang cocok.</div>
+          )}
+          {options.length > USER_RESULT_LIMIT && (
+            <div className="border-t border-hana-border bg-elevated/60 px-3 py-2 text-[11px] text-text-muted">
+              Tampilkan {filteredOptions.length} dari {options.length} user. Ketik nama atau cabang untuk mencari.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ListField({ field, value, onChange, users, disabled }) {
   const rows = Array.isArray(value) ? value : [];
 
@@ -268,36 +413,39 @@ function ListField({ field, value, onChange, users, disabled }) {
   const updateCell = (i, key, v) => onChange(rows.map((r, idx) => (idx === i ? { ...r, [key]: v } : r)));
 
   return (
-    <div>
+    <div className="space-y-1.5">
       <label className="label">{field.label}</label>
       <div className="space-y-2">
         {rows.map((row, i) => (
-          <div key={i} className="rounded-lg border border-hana-border bg-elevated/50 p-2.5 relative">
-            <div className="grid gap-2">
+          <div key={i} className="relative rounded-2xl border border-hana-border/80 bg-white/80 p-3 shadow-sm">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Item {i + 1}</p>
+              {!disabled && (
+                <button
+                  type="button"
+                  onClick={() => removeRow(i)}
+                  className="rounded-lg p-1.5 text-score-1 transition-colors hover:bg-score-1/10"
+                  title="Hapus baris"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+            <div className="grid gap-2.5">
               {field.itemSchema.map((sub) => (
-                <div key={sub.key}>
-                  <label className="block text-[10px] font-medium text-text-muted mb-0.5">{sub.label}</label>
+                <div key={sub.key} className="space-y-1">
+                  <label className="block text-[10px] font-semibold text-text-muted">{sub.label}</label>
                   <InputControl field={sub} value={row?.[sub.key]} onChange={(v) => updateCell(i, sub.key, v)} users={users} disabled={disabled} />
                 </div>
               ))}
             </div>
-            {!disabled && (
-              <button
-                type="button"
-                onClick={() => removeRow(i)}
-                className="absolute top-2 right-2 text-score-1 hover:bg-score-1/10 rounded p-1"
-                title="Hapus baris"
-              >
-                <Trash2 size={13} />
-              </button>
-            )}
           </div>
         ))}
         {!disabled && (
           <button
             type="button"
             onClick={addRow}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-hana-teal-700 hover:text-hana-teal-500 px-2 py-1"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-hana-teal-200 bg-hana-teal-50/60 px-3 py-2 text-xs font-bold text-hana-teal-700 transition-colors hover:border-hana-teal-300 hover:bg-hana-teal-50"
           >
             <Plus size={14} /> {field.addLabel}
           </button>
@@ -324,17 +472,17 @@ function ActualListField({ field, value, plannedItems, onChange, users, disabled
   };
 
   return (
-    <div>
+    <div className="space-y-1.5">
       <label className="label">{field.label}</label>
       {rows.length === 0 ? (
         <p className="text-xs text-text-muted italic">Tidak ada item yang direncanakan.</p>
       ) : (
         <div className="space-y-2">
           {rows.map((row, i) => (
-            <div key={i} className="rounded-lg border border-hana-border overflow-hidden">
+            <div key={i} className="overflow-hidden rounded-2xl border border-hana-border/80 bg-white/80 shadow-sm">
               {/* Planned item (read-only) */}
-              <div className="bg-elevated/70 px-3 py-2 border-b border-hana-border">
-                <p className="text-[10px] font-semibold text-text-muted mb-1">Rencana #{i + 1}</p>
+              <div className="border-b border-hana-border bg-elevated/70 px-3 py-2">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-text-muted">Rencana #{i + 1}</p>
                 <p className="text-xs text-ink">
                   {field.itemSchema
                     .map((sub) => {
@@ -348,10 +496,10 @@ function ActualListField({ field, value, plannedItems, onChange, users, disabled
                 </p>
               </div>
               {/* Result fields (editable) */}
-              <div className="p-2.5 grid gap-2">
+              <div className="grid gap-2.5 p-3">
                 {field.resultSchema.map((sub) => (
-                  <div key={sub.key}>
-                    <label className="block text-[10px] font-medium text-text-muted mb-0.5">{sub.label}</label>
+                  <div key={sub.key} className="space-y-1">
+                    <label className="block text-[10px] font-semibold text-text-muted">{sub.label}</label>
                     <InputControl
                       field={sub}
                       value={row?.[sub.key]}
