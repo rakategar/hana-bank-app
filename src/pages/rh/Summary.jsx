@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import Layout from '../../components/Layout';
 import WarningModal from './WarningModal';
 import AISummaryModal from './AISummaryModal';
-import { Avatar, SummarySkeleton, Select, Pagination, DatePickerCard } from '../../components/ui';
+import { Avatar, SummarySkeleton, Select, Pagination, DatePickerCard, Modal } from '../../components/ui';
 import { fetchAllUsers, fetchScore, fetchSummaryFor, fetchDailyActivity } from '../../lib/db';
 import { summarizeForRh } from '../../lib/gemini';
 import { exportUserDetailPDF, exportOverallPPT, buildTeamStats, lowPerformerIds } from '../../lib/reports';
@@ -38,6 +38,7 @@ export default function RHSummary() {
 
   // Modal control
   const [showAIModal, setShowAIModal] = useState(false);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -93,9 +94,11 @@ export default function RHSummary() {
       res.risk_flags = (res.risk_flags || []).filter((r) => validIds.has(r.user_id) || scored.some((u) => u.name === r.name));
       
       setResult(res);
+      setShowGenerateModal(false);
       setShowAIModal(true); // Open modal directly upon generation
       toast.success('AI Summary berhasil dibuat!');
     } catch (e) {
+      setShowGenerateModal(false);
       toast.error(e.message || 'Gagal generate summary.');
     } finally {
       setGenerating(false);
@@ -155,12 +158,32 @@ export default function RHSummary() {
       </Layout>
     );
   }
-
   return (
     <Layout title="Summary Keseluruhan" >
       <div className="space-y-5">
         
         <DatePickerCard date={date} onChange={setDate} label="Tanggal Summary" />
+
+        {/* AI Generator Panel */}
+        <div className="card flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 sm:p-6">
+          <div className="flex items-center gap-4">
+            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-hana-teal-50 border border-hana-teal-100/50 text-hana-teal-600 shadow-sm shrink-0">
+              <Bot size={24} className={clsx(generating && "animate-pulse")} />
+            </div>
+            <div>
+              <p className="font-display text-sm font-extrabold text-ink">Laporan Eksekutif Regional (AI)</p>
+              <p className="text-xs text-text-muted mt-0.5">Analisis executive summary, ranking kinerja, dan peringatan risiko menggunakan Google Gemini.</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowGenerateModal(true)}
+            disabled={generating}
+            className="inline-flex h-9 items-center gap-2 rounded-xl border border-hana-teal-200 bg-hana-teal-50 px-4 text-xs font-bold text-hana-teal-700 transition-colors hover:bg-hana-teal-100/30 hover:border-hana-teal-300 shrink-0"
+          >
+            {generating ? <Loader2 size={14} className="animate-spin text-hana-teal-700 animate-pulse" /> : <Bot size={14} />}
+            <span>{generating ? 'Menganalisis...' : result ? 'Lihat / Regenerate Laporan' : 'Generate Summary'}</span>
+          </button>
+        </div>
 
         {/* Export detail per user (PDF) */}
         <div className="card !p-0 overflow-hidden">
@@ -208,14 +231,13 @@ export default function RHSummary() {
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wide text-text-muted border-b border-hana-border/30">
                   <th className="py-2.5 font-semibold">Nama</th>
-                  <th className="px-4 py-2.5 font-semibold">Cabang</th>
                   <th className="pr-4 pl-4 py-2.5 font-semibold text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hana-border/30">
                 {paginatedUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="py-8 text-center text-text-muted font-medium">
+                    <td colSpan={2} className="py-8 text-center text-text-muted font-medium">
                       Tidak ada anggota tim ditemukan.
                     </td>
                   </tr>
@@ -232,13 +254,12 @@ export default function RHSummary() {
                                 {u.role}
                               </span>
                               <span className="text-[8px] text-text-muted/50">&bull;</span>
-                              <span className="text-[10px] text-text-secondary/70">ID: {u.id}</span>
+                              <span className="text-[10px] text-text-secondary/70">
+                                {u.branch}
+                              </span>
                             </div>
                           </div>
                         </div>
-                      </td>
-                      <td className="px-4 py-3.5 text-xs font-semibold text-text-secondary">
-                        {u.branch}
                       </td>
                       <td className="pr-4 pl-4 py-3.5 text-right">
                         <button
@@ -265,49 +286,75 @@ export default function RHSummary() {
           />
         </div>
 
-        {/* AI Generator Panel */}
-        {generating && (
-          <SummarySkeleton usersCount={users.length || 6} showGenerated={true} />
-        )}
+      </div>
 
-        {!generating && (
-          <div className="card text-center py-10 flex flex-col items-center">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-hana-teal-50 text-hana-teal-600 mb-4 shadow-sm border border-hana-teal-100/50">
-              <Bot size={28} />
+      {/* Generate AI Laporan Modal */}
+      <Modal
+        open={showGenerateModal}
+        onClose={() => !generating && setShowGenerateModal(false)}
+        title="Laporan Eksekutif AI"
+        maxWidth="max-w-md"
+      >
+        {generating ? (
+          <div className="text-center py-10 flex flex-col items-center">
+            <Loader2 size={40} className="animate-spin text-hana-teal-600 mb-4 animate-pulse" />
+            <p className="font-display text-base font-bold text-ink">Menganalisis Laporan Tim...</p>
+            <p className="text-xs text-text-secondary mt-2 max-w-sm leading-relaxed">
+              Google Gemini sedang memproses data aktivitas harian, menghitung ranking performa, dan mendeteksi peringatan risiko kritis tim Anda.
+            </p>
+          </div>
+        ) : (
+          <div className="text-center py-6 flex flex-col items-center">
+            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-hana-teal-50 text-hana-teal-600 mb-4 shadow-sm border border-hana-teal-100/50">
+              <Bot size={32} />
             </div>
-            
+            <p className="font-display text-lg font-extrabold text-ink mb-2">
+              Generate Laporan Eksekutif Regional
+            </p>
+            <p className="text-xs text-text-secondary max-w-sm mb-6 leading-relaxed">
+              Gunakan AI Studio (Google Gemini) untuk menganalisis dan menyusun Executive Summary, Ranking Kinerja, dan Peringatan Risiko tim regional Anda secara real-time untuk tanggal <strong>{formatDateID(date)}</strong>.
+            </p>
+
             {result ? (
-              <>
-                <p className="text-sm font-bold text-ink mb-1">Laporan Eksekutif AI Berhasil Disusun</p>
-                <p className="text-xs text-text-muted max-w-sm mb-6 leading-relaxed">
-                  Laporan analisis executive brief, ranking, dan risiko telah berhasil diproses untuk tanggal {formatDateID(date)}.
-                </p>
-                <div className="flex gap-2">
-                  <button onClick={() => setShowAIModal(true)} className="btn-teal !min-h-10 px-5 shadow-sm">
+              <div className="space-y-3 w-full">
+                <div className="p-3 bg-hana-teal-50/50 border border-hana-teal-100/50 rounded-xl text-xs text-hana-teal-800 font-semibold mb-3">
+                  ✓ Laporan tanggal ini sudah berhasil dibuat.
+                </div>
+                <div className="flex flex-col gap-2 w-full">
+                  <button
+                    onClick={() => {
+                      setShowGenerateModal(false);
+                      setShowAIModal(true);
+                    }}
+                    className="btn-teal w-full !min-h-11 shadow-sm"
+                  >
                     <Bot size={16} />
                     <span>Lihat Hasil AI Summary</span>
                   </button>
-                  <button onClick={handleGenerate} className="btn-ghost !min-h-10 px-5 border border-hana-border">
-                    <span>Regenerate</span>
+                  <button
+                    onClick={() => {
+                      handleGenerate();
+                    }}
+                    className="btn-ghost w-full !min-h-11 border border-hana-border"
+                  >
+                    <span>Regenerate (Buat Ulang)</span>
                   </button>
                 </div>
-              </>
+              </div>
             ) : (
-              <>
-                <p className="text-sm font-bold text-ink mb-1">Generate Laporan Eksekutif Regional</p>
-                <p className="text-xs text-text-muted max-w-sm mb-6 leading-relaxed">
-                  Gunakan AI Studio (Google Gemini) untuk menganalisis dan menyusun Executive Summary, Ranking Kinerja, dan Peringatan Risiko tim regional Anda secara real-time.
-                </p>
-                <button onClick={handleGenerate} className="btn-teal !min-h-10 px-5 shadow-sm">
-                  <Bot size={16} />
-                  <span>Generate Summary Keseluruhan</span>
-                </button>
-              </>
+              <button
+                onClick={() => {
+                  handleGenerate();
+                }}
+                className="btn-teal w-full !min-h-11 shadow-sm"
+              >
+                <Bot size={16} />
+                <span>Generate Summary Keseluruhan</span>
+              </button>
             )}
           </div>
         )}
-
-      </div>
+      </Modal>
 
       {/* AI Summary Modal Popup */}
       <AISummaryModal

@@ -395,7 +395,6 @@ export default function RHDashboard() {
                     <thead>
                       <tr className="text-left text-[11px] uppercase tracking-wide text-text-muted">
                         <th className="pl-6 pr-4 py-1.5 font-semibold">Nama</th>
-                        <th className="px-4 py-1.5 font-semibold">Cabang</th>
                         <th className="px-4 py-1.5 font-semibold">Skor Harian</th>
                         <th className="px-4 py-1.5 font-semibold">Trend</th>
                         <th className="pr-6 pl-4 py-1.5 font-semibold">Status</th>
@@ -404,7 +403,7 @@ export default function RHDashboard() {
                     <tbody>
                       {paginatedMonitor.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-12 text-center text-text-muted bg-white/30 border border-hana-border/30 rounded-2xl">
+                          <td colSpan={4} className="py-12 text-center text-text-muted bg-white/30 border border-hana-border/30 rounded-2xl">
                             <UsersRound className="mx-auto mb-2 text-text-muted/50" size={32} />
                             <p className="text-sm font-bold text-ink">Tidak ada anggota tim ditemukan</p>
                             <p className="text-xs text-text-muted mt-1">Cari dengan kata kunci lain atau ubah filter status/jabatan.</p>
@@ -436,14 +435,13 @@ export default function RHDashboard() {
                                       <span className="inline-flex items-center rounded bg-slate-50 border border-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-text-secondary uppercase">
                                         {r.user.role}
                                       </span>
+                                      <span className="text-[8px] text-text-muted/50">&bull;</span>
+                                      <span className="text-[10px] text-text-secondary/70">
+                                        {r.user.branch}
+                                      </span>
                                     </div>
                                   </div>
                                 </div>
-                              </td>
-
-                              {/* Cabang Cell */}
-                              <td className="px-4 py-4 bg-white border-y border-hana-border/30 text-xs font-semibold text-text-secondary transition-all duration-150">
-                                {r.user.branch}
                               </td>
 
                               {/* Skor Cell */}
