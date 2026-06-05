@@ -5,6 +5,7 @@ import { fetchUserMaybe } from '../lib/db';
 import { IS_DEMO } from '../lib/appMode';
 
 const AuthContext = createContext(null);
+const VALID_ROLES = new Set(['FA', 'FWSS', 'BM', 'RH']);
 
 function dashboardPathFor(role) {
   switch (role) {
@@ -83,7 +84,7 @@ function ClerkAuthProvider({ children }) {
     refreshProfile: loadProfile,
     login: null, // tidak dipakai di mode live
     logout,
-    dashboardPath: dashboardPathFor,
+    dashboardPath: (role) => dashboardPathFor(role || profile?.role),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -91,6 +92,19 @@ function ClerkAuthProvider({ children }) {
 
 // ── DEMO: sesi disimpan di localStorage (one-click login) ─
 const SESSION_KEY = 'icu_session';
+
+function isValidDemoUser(value) {
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    typeof value.id === 'string' &&
+    value.id.trim() &&
+    typeof value.name === 'string' &&
+    value.name.trim() &&
+    typeof value.role === 'string' &&
+    VALID_ROLES.has(value.role)
+  );
+}
 
 function DemoAuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -101,18 +115,28 @@ function DemoAuthProvider({ children }) {
       const raw = localStorage.getItem(SESSION_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed?.id) {
+        if (isValidDemoUser(parsed)) {
           setUser(parsed);
           setUserContext(parsed.id);
+        } else {
+          localStorage.removeItem(SESSION_KEY);
+          clearUserContext();
         }
       }
     } catch {
       localStorage.removeItem(SESSION_KEY);
+      clearUserContext();
     }
     setReady(true);
   }, []);
 
   const login = useCallback((userObj) => {
+    if (!isValidDemoUser(userObj)) {
+      localStorage.removeItem(SESSION_KEY);
+      clearUserContext();
+      setUser(null);
+      return;
+    }
     setUser(userObj);
     localStorage.setItem(SESSION_KEY, JSON.stringify(userObj));
     setUserContext(userObj.id);
@@ -134,7 +158,7 @@ function DemoAuthProvider({ children }) {
     refreshProfile: () => {},
     login,
     logout,
-    dashboardPath: dashboardPathFor,
+    dashboardPath: (role) => dashboardPathFor(role || user?.role),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
