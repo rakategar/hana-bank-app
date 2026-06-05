@@ -14,7 +14,7 @@ export function PerformancePill({ status }) {
   if (!info) return null;
   return (
     <span
-      className="px-3 py-1 rounded-full text-[11px] font-semibold uppercase"
+      className="px-3 py-1 rounded-full text-[11px] font-semibold uppercase whitespace-nowrap"
       style={{ backgroundColor: `${info.color}26`, color: info.color }}
     >
       {info.label}

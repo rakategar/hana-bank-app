@@ -5,7 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import ActivitySlot from '../components/ActivitySlot';
 import ExtraPlanModal from '../components/ExtraPlanModal';
-import { FullSpinner, ErrorBox, Spinner, Toast } from '../components/ui';
+import { toast } from 'react-hot-toast';
+import { FullSpinner, Spinner } from '../components/ui';
 import { emptyPlanByDay, normalizePlanByDay, formSchemaFor } from '../constants/timeSlots';
 import {
   fetchWeeklyPlan,
@@ -147,13 +148,11 @@ export default function DailyInput() {
   const [slots, setSlots] = useState([]);
   const [users, setUsers] = useState({ supervisor: null, subordinates: [] });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [savedAt, setSavedAt] = useState(null);
   const [busy, setBusy] = useState('');
   const [busySlot, setBusySlot] = useState(null);
   const [showOthers, setShowOthers] = useState(false);
   const [showExtraModal, setShowExtraModal] = useState(false);
-  const [toast, setToast] = useState(null);
 
   const autoSaveTimer = useRef(null);
   const dirty = useRef(false);
@@ -174,7 +173,7 @@ export default function DailyInput() {
         setSlots(built);
         setUsers({ supervisor, subordinates });
       } catch (e) {
-        setError(e.message || 'Gagal memuat input harian.');
+        toast.error(e.message || 'Gagal memuat input harian.');
       } finally {
         setLoading(false);
       }
@@ -196,10 +195,7 @@ export default function DailyInput() {
     ]);
     const byDay = plan?.slots ? normalizePlanByDay(plan.slots, user.role) : emptyPlanByDay(user.role);
     setSlots(buildSlots(byDay[dayKey], activity, user.role, extraPlans));
-    setToast({
-      type: 'success',
-      message: payload.date === date ? `Rencana "${payload.label}" ditambahkan ke agenda hari ini.` : `Rencana "${payload.label}" dijadwalkan.`,
-    });
+    toast.success(payload.date === date ? `Rencana "${payload.label}" ditambahkan ke agenda hari ini.` : `Rencana "${payload.label}" dijadwalkan.`);
   }
 
   const persist = useCallback(
@@ -235,16 +231,15 @@ export default function DailyInput() {
     const slot = slots[idx];
     const err = validateSlot(slot, formSchemaFor(user.role, slot.time));
     if (err) {
-      setToast({ type: 'error', message: err });
+      toast.error(err);
       return;
     }
     setBusySlot(idx);
-    setError('');
     try {
       await persist();
-      setToast({ type: 'success', message: `Slot ${slot.time} tersimpan.` });
+      toast.success(`Slot ${slot.time} tersimpan.`);
     } catch (e) {
-      setToast({ type: 'error', message: e.message || 'Gagal menyimpan slot.' });
+      toast.error(e.message || 'Gagal menyimpan slot.');
     } finally {
       setBusySlot(null);
     }
@@ -254,11 +249,10 @@ export default function DailyInput() {
     const gated = applyGating(slots, date);
     const filled = gated.filter(slotEngaged).length;
     if (filled === 0) {
-      setError('Belum ada aktivitas terisi.');
+      toast.error('Belum ada aktivitas terisi.');
       return;
     }
     setBusy('scoring');
-    setError('');
     try {
       const daily = await upsertDailyActivity({
         userId: user.id, role: user.role, date, activities: gated, status: 'submitted', submit: true,
@@ -271,7 +265,7 @@ export default function DailyInput() {
       await upsertDailyActivity({ userId: user.id, role: user.role, date, activities: gated, status: 'scored' });
       navigate('/score-result', { state: { submitted: true } });
     } catch (e) {
-      setError(e.message || 'Gagal melakukan penilaian AI.');
+      toast.error(e.message || 'Gagal melakukan penilaian AI.');
     } finally {
       setBusy('');
     }
@@ -280,7 +274,7 @@ export default function DailyInput() {
   // Akhir pekan / tidak ada jadwal
   if (!loading && !dayKey) {
     return (
-      <Layout title="Input Aktivitas Hari Ini" back={true}>
+      <Layout title="Input Aktivitas Hari Ini">
         <div className="card text-center py-12 max-w-md mx-auto">
           <CalendarOff size={36} className="text-text-muted mx-auto mb-3" />
           <p className="font-semibold">Tidak ada jadwal untuk akhir pekan</p>
@@ -299,12 +293,11 @@ export default function DailyInput() {
   const otherSlots = viewSlots.filter((s) => slotWindowState(date, s.time, s.endTime) !== 'open');
 
   return (
-    <Layout title="Input Aktivitas Hari Ini" back={true}>
+    <Layout title="Input Aktivitas Hari Ini">
       {loading ? (
         <FullSpinner label="Memuat aktivitas..." />
       ) : (
         <div className="space-y-4">
-          {error && <ErrorBox>{error}</ErrorBox>}
 
           <div className="card flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm">
@@ -415,8 +408,6 @@ export default function DailyInput() {
         role={user.role}
         onCreate={handleCreateExtraPlan}
       />
-
-      <Toast toast={toast} onClose={() => setToast(null)} />
     </Layout>
   );
 }

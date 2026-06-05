@@ -50,7 +50,7 @@
   input,
   select {
     @apply bg-white/90 border border-hana-border rounded-lg text-ink placeholder:text-text-muted;
-    @apply focus:outline-none focus:border-hana-teal-500 focus:shadow-focus;
+    @apply focus:outline-none focus:border-hana-teal-500;
     transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
   }
 
@@ -130,5 +130,25 @@
   }
   .nav-item-active {
     @apply bg-white/15 text-white shadow-sm ring-1 ring-white/10;
+  }
+
+  /* Date input styling */
+  input[type="date"] {
+    @apply appearance-none bg-white cursor-pointer;
+    color-scheme: light;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 3px;
+    transition: background-color 0.15s ease;
+    filter: opacity(0.5);
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    background-color: rgba(4, 178, 146, 0.1);
+    filter: opacity(0.8);
+  }
+  input[type="date"]:focus::-webkit-calendar-picker-indicator {
+    filter: opacity(1);
   }
 }

@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ClerkProvider } from '@clerk/react';
+import { Toaster } from 'react-hot-toast';
 import App from './App.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import { DemoTimeProvider } from './contexts/DemoTimeContext.jsx';
@@ -94,6 +95,27 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <App />
         </Providers>
       </BrowserRouter>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3500,
+          style: {
+            borderRadius: '16px',
+            background: '#fff',
+            color: '#1e293b',
+            fontSize: '13px',
+            fontWeight: 600,
+            boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
+            border: '1px solid rgba(0,0,0,0.06)',
+          },
+          success: {
+            iconTheme: { primary: '#04B292', secondary: '#fff' },
+          },
+          error: {
+            iconTheme: { primary: '#E53E3E', secondary: '#fff' },
+          },
+        }}
+      />
     </ErrorBoundary>
   </React.StrictMode>
 );

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bot, Save, AlertTriangle, CheckCircle2, FolderClock } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import Layout from '../../components/Layout';
-import { FullSpinner, ErrorBox, Spinner } from '../../components/ui';
+import { ErrorBox, Spinner, SummarySkeleton } from '../../components/ui';
 import { PersonSummaryCard, ActionPlanEditor } from '../../components/summary';
 import {
   fetchSubordinates,
@@ -36,7 +37,6 @@ export default function FWSSSummary() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
   const [aiResult, setAiResult] = useState(null);
 
   // notes & action plan per FA target
@@ -66,7 +66,7 @@ export default function FWSSSummary() {
         setActions(a);
         if (savedData) setAiResult(savedData);
       } catch (e) {
-        setError(e.message || 'Gagal memuat data.');
+        toast.error(e.message || 'Gagal memuat data.');
       } finally {
         setLoading(false);
       }
@@ -75,7 +75,6 @@ export default function FWSSSummary() {
 
   async function handleGenerate() {
     setGenerating(true);
-    setError('');
     try {
       const faData = await Promise.all(
         fas.map(async (fa) => {
@@ -105,7 +104,7 @@ export default function FWSSSummary() {
       });
       setAiResult(result);
     } catch (e) {
-      setError(e.message || 'Gagal generate summary.');
+      toast.error(e.message || 'Gagal generate summary.');
     } finally {
       setGenerating(false);
     }
@@ -113,7 +112,6 @@ export default function FWSSSummary() {
 
   async function handleSave(faId) {
     setSaving(true);
-    setError('');
     try {
       const fa = fas.find((x) => x.id === faId);
       const faSummary = aiResult?.fa_summaries?.find((f) => f.fa_id === faId || f.fa_name === fa?.name);
@@ -152,7 +150,7 @@ export default function FWSSSummary() {
       setSavedFor((s) => ({ ...s, [faId]: true }));
       setTimeout(() => setSavedFor((s) => ({ ...s, [faId]: false })), 2500);
     } catch (e) {
-      setError(e.message || 'Gagal menyimpan.');
+      toast.error(e.message || 'Gagal menyimpan.');
     } finally {
       setSaving(false);
     }
@@ -163,12 +161,11 @@ export default function FWSSSummary() {
   }
 
   return (
-    <Layout title="Summary FA" back="/dashboard/fwss">
+    <Layout title="Summary FA">
       {loading ? (
-        <FullSpinner label="Memuat data FA..." />
+        <SummarySkeleton usersCount={fas.length || 2} />
       ) : (
         <div className="space-y-4">
-          {error && <ErrorBox>{error}</ErrorBox>}
 
           <div className="flex justify-end">
             <button onClick={() => navigate('/notes-archive')} className="btn-ghost !py-2 text-xs">

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Save, CheckCircle2, Lock } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import SlotFormRenderer from '../components/SlotFormRenderer';
-import { FullSpinner, ErrorBox } from '../components/ui';
+import { FullSpinner } from '../components/ui';
 import { emptyPlanByDay, normalizePlanByDay, formSchemaFor } from '../constants/timeSlots';
 import { fetchWeeklyPlan, upsertWeeklyPlan, fetchSubordinates, fetchUserMaybe } from '../lib/db';
 import { currentWeekId, WEEKDAYS, dayKeyFromDate, isStructuredFilled, isWeeklyPlanOpen, nowDate, clsx } from '../lib/utils';
@@ -18,7 +19,6 @@ export default function WeeklyPlan() {
   const [users, setUsers] = useState({ supervisor: null, subordinates: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
   const planOpen = isWeeklyPlanOpen(nowDate());
@@ -37,7 +37,7 @@ export default function WeeklyPlan() {
         }
         setUsers({ supervisor, subordinates });
       } catch (e) {
-        setError(e.message || 'Gagal memuat rencana.');
+        toast.error(e.message || 'Gagal memuat rencana.');
       } finally {
         setLoading(false);
       }
@@ -60,7 +60,6 @@ export default function WeeklyPlan() {
 
   async function save(submit) {
     setSaving(true);
-    setError('');
     try {
       await persist(planByDay, submit);
       if (submit) {
@@ -68,19 +67,18 @@ export default function WeeklyPlan() {
         navigate(-1);
       }
     } catch (e) {
-      setError(e.message || 'Gagal menyimpan rencana.');
+      toast.error(e.message || 'Gagal menyimpan rencana.');
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <Layout title="Rencana Minggu Ini" back={true}>
+    <Layout title="Rencana Minggu Ini">
       {loading ? (
         <FullSpinner label="Memuat rencana..." />
       ) : (
         <div className="space-y-5">
-          {error && <ErrorBox>{error}</ErrorBox>}
 
           <div className="card">
             <p className="text-sm font-semibold">{currentWeekId()} · {user.role}</p>

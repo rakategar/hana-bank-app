@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserPlus, LogOut, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'react-hot-toast';
 import { fetchUsersByRole, upsertUserProfile } from '../lib/db';
-import { ErrorBox, Spinner } from '../components/ui';
+import { Spinner } from '../components/ui';
 import { ROLE_LABELS } from '../lib/utils';
 import logo from '/hana-bank-logo.png';
 
@@ -32,7 +33,6 @@ export default function Onboarding() {
   const [supervisors, setSupervisors] = useState([]);
   const [supLoading, setSupLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
 
   const supRole = SUPERVISOR_ROLE[role];
 
@@ -55,10 +55,9 @@ export default function Onboarding() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setError('');
-    if (!name.trim()) return setError('Nama lengkap wajib diisi.');
-    if (!role) return setError('Pilih role Anda.');
-    if (!branch) return setError('Pilih cabang Anda.');
+    if (!name.trim()) return toast.error('Nama lengkap wajib diisi.');
+    if (!role) return toast.error('Pilih role Anda.');
+    if (!branch) return toast.error('Pilih cabang Anda.');
 
     setSaving(true);
     try {
@@ -72,7 +71,7 @@ export default function Onboarding() {
       await refreshProfile();
       navigate(dashboardPath(role), { replace: true });
     } catch (err) {
-      setError(err.message || 'Gagal menyimpan profil.');
+      toast.error(err.message || 'Gagal menyimpan profil.');
     } finally {
       setSaving(false);
     }
@@ -110,7 +109,6 @@ export default function Onboarding() {
         </div>
 
         <form onSubmit={handleSubmit} className="card space-y-4">
-          {error && <ErrorBox>{error}</ErrorBox>}
 
           <div>
             <label className="label">Email</label>

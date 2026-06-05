@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Send, AlertTriangle } from 'lucide-react';
-import { Modal, ErrorBox, Spinner } from '../../components/ui';
+import { toast } from 'react-hot-toast';
+import { Modal, Spinner } from '../../components/ui';
 import { sendWarnings } from '../../lib/db';
 import { useAuth } from '../../contexts/AuthContext';
 import { clsx } from '../../lib/utils';
@@ -11,7 +12,6 @@ export default function WarningModal({ open, onClose, users, preselect = [], onS
   const [selected, setSelected] = useState(preselect);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
 
   // sync preselect saat modal dibuka
@@ -20,10 +20,9 @@ export default function WarningModal({ open, onClose, users, preselect = [], onS
   }
 
   async function handleSend() {
-    setError('');
-    if (selected.length === 0) return setError('Pilih minimal satu target.');
-    if (!title.trim()) return setError('Judul surat wajib diisi.');
-    if (!message.trim()) return setError('Isi pesan wajib diisi.');
+    if (selected.length === 0) return toast.error('Pilih minimal satu target.');
+    if (!title.trim()) return toast.error('Judul surat wajib diisi.');
+    if (!message.trim()) return toast.error('Isi pesan wajib diisi.');
     setSending(true);
     try {
       await sendWarnings({ fromId: user.id, toIds: selected, title: title.trim(), message: message.trim() });
@@ -33,7 +32,7 @@ export default function WarningModal({ open, onClose, users, preselect = [], onS
       setSelected([]);
       onClose();
     } catch (e) {
-      setError(e.message || 'Gagal mengirim surat peringatan.');
+      toast.error(e.message || 'Gagal mengirim surat peringatan.');
     } finally {
       setSending(false);
     }
@@ -43,7 +42,7 @@ export default function WarningModal({ open, onClose, users, preselect = [], onS
     <Modal
       open={open}
       onClose={onClose}
-      title="⚠️ Kirim Surat Peringatan"
+      title="Kirim Surat Peringatan"
       footer={
         <button onClick={handleSend} disabled={sending} className="btn-pink w-full">
           {sending ? <Spinner size={16} className="text-white" /> : <Send size={16} />} Kirim Peringatan
@@ -51,7 +50,6 @@ export default function WarningModal({ open, onClose, users, preselect = [], onS
       }
     >
       <div className="space-y-4">
-        {error && <ErrorBox>{error}</ErrorBox>}
 
         <div>
           <label className="label">Pilih Target (bisa lebih dari satu)</label>

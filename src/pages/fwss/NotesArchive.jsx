@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FolderClock, CalendarClock, CheckCircle2, StickyNote } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import Layout from '../../components/Layout';
-import { FullSpinner, ErrorBox } from '../../components/ui';
+import { FullSpinner } from '../../components/ui';
 import { fetchSummariesBySupervisor, fetchSubordinates } from '../../lib/db';
 import { formatDateID } from '../../lib/utils';
 
@@ -11,7 +12,6 @@ export default function NotesArchive() {
   const [rows, setRows] = useState([]);
   const [namesById, setNamesById] = useState({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -23,7 +23,7 @@ export default function NotesArchive() {
         setRows(summaries);
         setNamesById(Object.fromEntries(subs.map((s) => [s.id, s.name])));
       } catch (e) {
-        setError(e.message || 'Gagal memuat arsip.');
+        toast.error(e.message || 'Gagal memuat arsip.');
       } finally {
         setLoading(false);
       }
@@ -41,12 +41,11 @@ export default function NotesArchive() {
   }, [rows]);
 
   return (
-    <Layout title="Arsip Catatan" back="/summary/fwss">
+    <Layout title="Arsip Catatan">
       {loading ? (
         <FullSpinner label="Memuat arsip catatan..." />
       ) : (
         <div className="space-y-5">
-          {error && <ErrorBox>{error}</ErrorBox>}
 
           {grouped.length === 0 ? (
             <div className="card text-center py-12">

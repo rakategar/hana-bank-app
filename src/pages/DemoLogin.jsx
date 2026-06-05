@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { KeyRound, UsersRound } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchAllUsers } from '../lib/db';
 import { isSupabaseConfigured } from '../lib/supabase';
 import UserCard from '../components/UserCard';
-import { ErrorBox } from '../components/ui';
 import ManualLoginForm from '../components/login/ManualLoginForm';
 import UnderlineTabs from '../components/login/UnderlineTabs';
 import UserCardSkeletonGrid from '../components/login/UserCardSkeletonGrid';
@@ -35,7 +35,6 @@ export default function DemoLogin() {
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [manual, setManual] = useState({ username: '', password: '' });
   const [manualErr, setManualErr] = useState('');
   const [activeTab, setActiveTab] = useState('demo');
@@ -50,7 +49,7 @@ export default function DemoLogin() {
           setUsers(FALLBACK_USERS);
         }
       } catch (e) {
-        setError('Gagal memuat user dari Supabase, memakai data demo. ' + (e.message || ''));
+        toast.error('Gagal memuat user dari Supabase, memakai data demo. ' + (e.message || ''));
         setUsers(FALLBACK_USERS);
       } finally {
         setLoading(false);
@@ -85,8 +84,6 @@ export default function DemoLogin() {
           {activeTab === 'demo' ? 'Pilih user untuk langsung masuk.' : 'Masuk manual memakai ID dan password demo.'}
         </p>
       </div>
-
-      {error && <div className="mb-4"><ErrorBox>{error}</ErrorBox></div>}
 
       <UnderlineTabs tabs={LOGIN_TABS} activeValue={activeTab} onChange={setActiveTab} />
 

@@ -1,23 +1,27 @@
 import { useEffect, useState } from 'react';
-import { Bot, AlertTriangle, Trophy, Flag, FileDown, Presentation, Loader2 } from 'lucide-react';
+import { Bot, AlertTriangle, FileDown, Loader2, Search, X } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import Layout from '../../components/Layout';
-import ScoreBadge from '../../components/ScoreBadge';
 import WarningModal from './WarningModal';
-import { PerformancePill } from '../../components/summary';
-import { FullSpinner, ErrorBox, Spinner } from '../../components/ui';
+import AISummaryModal from './AISummaryModal';
+import { Avatar, SummarySkeleton, Select, Pagination, DatePickerCard } from '../../components/ui';
 import { fetchAllUsers, fetchScore, fetchSummaryFor, fetchDailyActivity } from '../../lib/db';
 import { summarizeForRh } from '../../lib/gemini';
 import { exportUserDetailPDF, exportOverallPPT, buildTeamStats, lowPerformerIds } from '../../lib/reports';
 import { todayISO, formatDateID, clsx } from '../../lib/utils';
 
-const URGENCY_COLOR = { high: '#EF4444', medium: '#F97316', low: '#3B82F6' };
+const ROLE_OPTIONS = [
+  { value: 'ALL', label: 'Semua Jabatan' },
+  { value: 'BM', label: 'Branch Manager' },
+  { value: 'FWSS', label: 'FW Sales Supervisor' },
+  { value: 'FA', label: 'Financial Advisor' },
+];
 
 export default function RHSummary() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [error, setError] = useState('');
   const [users, setUsers] = useState([]);
   const [result, setResult] = useState(null);
   const [teamScored, setTeamScored] = useState([]);
@@ -27,13 +31,25 @@ export default function RHSummary() {
   const [showWarning, setShowWarning] = useState(false);
   const [preselect, setPreselect] = useState([]);
 
+  // Search, Filter, Pagination states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Modal control
+  const [showAIModal, setShowAIModal] = useState(false);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, roleFilter]);
+
   useEffect(() => {
     (async () => {
       try {
         const all = await fetchAllUsers();
         setUsers(all.filter((u) => u.role !== 'RH'));
       } catch (e) {
-        setError(e.message || 'Gagal memuat user.');
+        toast.error(e.message || 'Gagal memuat user.');
       } finally {
         setLoading(false);
       }
@@ -42,7 +58,6 @@ export default function RHSummary() {
 
   async function handleGenerate() {
     setGenerating(true);
-    setError('');
     try {
       const team = users;
       const scored = await Promise.all(
@@ -60,7 +75,7 @@ export default function RHSummary() {
         })
       );
       setTeamScored(scored);
-      // sertakan summary BM jika ada
+
       const bm = team.find((u) => u.role === 'BM');
       let bmSummary = null;
       if (bm) {
@@ -68,40 +83,36 @@ export default function RHSummary() {
         bmSummary = row?.summary_data || null;
       }
 
-      // Statistik deterministik = sumber kebenaran (kirim sbg fakta ke AI).
       const stats = buildTeamStats(scored);
       const res = await summarizeForRh({ allData: { team: scored, ranking: stats.ranking, stats, bm_summary: bmSummary } });
 
-      // Timpa/saring output AI agar PERSIS sesuai data nyata.
       res.performance_ranking = stats.ranking;
       const validIds = new Set(scored.map((u) => u.user_id));
       const warnSet = new Set(lowPerformerIds(scored));
       res.requires_warning_letter = (res.requires_warning_letter || []).filter((id) => warnSet.has(id));
       res.risk_flags = (res.risk_flags || []).filter((r) => validIds.has(r.user_id) || scored.some((u) => u.name === r.name));
+      
       setResult(res);
+      setShowAIModal(true); // Open modal directly upon generation
+      toast.success('AI Summary berhasil dibuat!');
     } catch (e) {
-      setError(e.message || 'Gagal generate summary.');
+      toast.error(e.message || 'Gagal generate summary.');
     } finally {
       setGenerating(false);
     }
   }
 
-  function openWarningFor(ids) {
-    setPreselect(ids);
-    setShowWarning(true);
-  }
-
   async function handleExportPdf(u) {
     setExportingId(u.id);
-    setError('');
     try {
       const [activity, score] = await Promise.all([
         fetchDailyActivity(u.id, date),
         fetchScore(u.id, date),
       ]);
       await exportUserDetailPDF({ user: u, date, activity, score });
+      toast.success(`PDF ${u.name} berhasil diunduh.`);
     } catch (e) {
-      setError(e.message || 'Gagal mengekspor PDF.');
+      toast.error(e.message || 'Gagal mengekspor PDF.');
     } finally {
       setExportingId(null);
     }
@@ -109,175 +120,205 @@ export default function RHSummary() {
 
   async function handleExportPpt() {
     setPptBusy(true);
-    setError('');
     try {
       await exportOverallPPT({ rhName: user.name, date, team: teamScored, result });
+      toast.success('Laporan PPT berhasil diunduh.');
     } catch (e) {
-      setError(e.message || 'Gagal membuat laporan PPT.');
+      toast.error(e.message || 'Gagal membuat laporan PPT.');
     } finally {
       setPptBusy(false);
     }
   }
 
+  // Filter & Pagination computations
+  const filteredUsers = users.filter((u) => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const nameMatch = u.name?.toLowerCase().includes(q);
+      const branchMatch = u.branch?.toLowerCase().includes(q);
+      if (!nameMatch && !branchMatch) return false;
+    }
+    if (roleFilter !== 'ALL' && u.role !== roleFilter) {
+      return false;
+    }
+    return true;
+  });
+
+  const itemsPerPage = 5;
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  if (loading) {
+    return (
+      <Layout title="Summary Keseluruhan" >
+        <SummarySkeleton usersCount={6} />
+      </Layout>
+    );
+  }
+
   return (
-    <Layout title="Summary Keseluruhan" back="/dashboard/rh">
-      {loading ? (
-        <FullSpinner label="Memuat data..." />
-      ) : (
-        <div className="space-y-4">
-          {error && <ErrorBox>{error}</ErrorBox>}
+    <Layout title="Summary Keseluruhan" >
+      <div className="space-y-5">
+        
+        <DatePickerCard date={date} onChange={setDate} label="Tanggal Summary" />
 
-          {/* Pemilih tanggal laporan */}
-          <div className="card flex flex-wrap items-end justify-between gap-3">
+        {/* Export detail per user (PDF) */}
+        <div className="card !p-0 overflow-hidden">
+          <div className="border-b border-hana-border px-4 py-4 sm:px-6">
             <div>
-              <label className="label">Tanggal Laporan</label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="px-3 py-2 text-sm"
-              />
-              <p className="text-[11px] text-text-muted mt-1">{formatDateID(date)}</p>
+              <p className="font-display text-lg font-extrabold text-ink">Export Laporan Harian Tim (PDF)</p>
+              <p className="text-xs text-text-muted mt-0.5">Unduh berkas PDF laporan rinci aktivitas harian masing-masing anggota tim.</p>
             </div>
-          </div>
 
-          {/* Export detail per user (PDF) */}
-          <div className="card">
-            <p className="flex items-center gap-1.5 text-sm font-semibold mb-3">
-              <FileDown size={16} className="text-hana-teal-700" /> Export Detail per User (PDF)
-            </p>
-            <div className="grid sm:grid-cols-2 gap-2">
-              {users.map((u) => (
-                <div key={u.id} className="flex items-center gap-3 rounded-lg border border-hana-border px-3 py-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">{u.name}</p>
-                    <p className="text-[10px] text-text-muted">{u.role}{u.branch ? ' · ' + u.branch : ''}</p>
-                  </div>
+            {/* Search & Filters Bar */}
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="Cari nama atau cabang..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-xs"
+                />
+                <span className="absolute left-3 top-2.5 text-text-muted">
+                  <Search size={14} />
+                </span>
+                {searchQuery && (
                   <button
-                    onClick={() => handleExportPdf(u)}
-                    disabled={exportingId === u.id}
-                    className="btn-ghost !py-1.5 !px-3 text-xs shrink-0"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-2.5 text-text-muted hover:text-ink"
                   >
-                    {exportingId === u.id ? <Loader2 size={13} className="animate-spin" /> : <FileDown size={13} />} PDF
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {!result && (
-            <div className="card text-center py-8">
-              <Bot size={36} className="text-hana-teal-700 mx-auto mb-3" />
-              <p className="text-sm text-text-secondary mb-4">
-                Generate executive summary kinerja seluruh tim regional hari ini.
-              </p>
-              <button onClick={handleGenerate} disabled={generating} className="btn-teal mx-auto">
-                {generating ? <Spinner size={18} className="text-white" /> : <Bot size={18} />}
-                {generating ? 'Menyusun executive brief...' : 'Generate Summary Keseluruhan'}
-              </button>
-            </div>
-          )}
-
-          {result && (
-            <>
-              <div className="flex justify-end gap-2">
-                <button onClick={handleExportPpt} disabled={pptBusy} className="btn-teal !py-2 text-xs">
-                  {pptBusy ? <Spinner size={14} className="text-white" /> : <Presentation size={14} />} Generate Laporan PPT
-                </button>
-                <button onClick={handleGenerate} disabled={generating} className="btn-ghost !py-2 text-xs">
-                  {generating ? <Spinner size={14} /> : <Bot size={14} />} Regenerate
-                </button>
-              </div>
-
-              {/* Executive summary */}
-              <div className="card border-hana-teal-700/40 bg-hana-teal-50">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-semibold text-hana-teal-700">Executive Summary</p>
-                  <PerformancePill status={result.team_overall_status} />
-                </div>
-                <p className="text-sm text-text-secondary leading-relaxed">{result.executive_summary}</p>
-              </div>
-
-              {/* Ranking */}
-              {result.performance_ranking?.length > 0 && (
-                <div className="card">
-                  <p className="flex items-center gap-1.5 text-sm font-semibold mb-3"><Trophy size={16} className="text-hana-teal-700" /> Ranking Performa</p>
-                  <div className="space-y-2">
-                    {result.performance_ranking.map((r) => (
-                      <div key={r.user_id || r.rank} className="flex items-center gap-3">
-                        <span className="font-display font-bold text-text-muted w-5">{r.rank}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold truncate">{r.name}</p>
-                          <p className="text-[10px] text-text-muted">{r.role}</p>
-                        </div>
-                        <span className="font-display font-bold">{r.score != null ? Number(r.score).toFixed(1) : '—'}</span>
-                        <ScoreBadge level={r.level} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Risk flags */}
-              {result.risk_flags?.length > 0 && (
-                <div className="card border-score-1/30">
-                  <p className="flex items-center gap-1.5 text-sm font-semibold text-score-1 mb-3"><Flag size={16} /> Risk Flags</p>
-                  <div className="space-y-2">
-                    {result.risk_flags.map((r, i) => (
-                      <div key={i} className="flex items-start gap-2 text-xs">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase shrink-0" style={{ backgroundColor: `${URGENCY_COLOR[r.urgency] || '#52616B'}26`, color: URGENCY_COLOR[r.urgency] || '#52616B' }}>
-                          {r.urgency}
-                        </span>
-                        <p className="text-text-secondary"><b className="text-ink">{r.name}:</b> {r.issue}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Strategic recommendations */}
-              {result.strategic_recommendations?.length > 0 && (
-                <div className="card">
-                  <p className="text-sm font-semibold mb-2 text-hana-teal-700">Rekomendasi Strategis</p>
-                  <ul className="space-y-1.5">
-                    {result.strategic_recommendations.map((s, i) => (
-                      <li key={i} className="text-xs text-text-secondary flex gap-2"><span className="text-hana-teal-700">•</span>{s}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Warning suggestion */}
-              <div className="card">
-                {result.requires_warning_letter?.length > 0 ? (
-                  <>
-                    <p className="flex items-center gap-1.5 text-sm font-semibold text-score-1 mb-1"><AlertTriangle size={16} /> Disarankan Surat Peringatan</p>
-                    <p className="text-xs text-text-muted mb-3">
-                      {result.requires_warning_letter
-                        .map((id) => users.find((u) => u.id === id)?.name || id)
-                        .join(', ')}
-                    </p>
-                    <button onClick={() => openWarningFor(result.requires_warning_letter)} className="btn-pink w-full">
-                      <AlertTriangle size={16} /> Kirim Peringatan ke yang Disarankan
-                    </button>
-                  </>
-                ) : (
-                  <button onClick={() => openWarningFor([])} className="btn-pink w-full">
-                    <AlertTriangle size={16} /> Kirim Surat Peringatan
+                    <X size={14} />
                   </button>
                 )}
               </div>
-            </>
-          )}
-        </div>
-      )}
+              <div className="flex flex-wrap gap-2">
+                <Select
+                  value={roleFilter}
+                  onChange={setRoleFilter}
+                  options={ROLE_OPTIONS}
+                  className="w-48"
+                />
+              </div>
+            </div>
+          </div>
 
-      <WarningModal
-        key={preselect.join(',')}
-        open={showWarning}
-        onClose={() => setShowWarning(false)}
+          <div className="overflow-x-auto px-4 sm:px-6 py-2">
+            <table className="w-full min-w-[600px] text-sm">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-wide text-text-muted border-b border-hana-border/30">
+                  <th className="py-2.5 font-semibold">Nama</th>
+                  <th className="px-4 py-2.5 font-semibold">Cabang</th>
+                  <th className="pr-4 pl-4 py-2.5 font-semibold text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-hana-border/30">
+                {paginatedUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="py-8 text-center text-text-muted font-medium">
+                      Tidak ada anggota tim ditemukan.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedUsers.map((u) => (
+                    <tr key={u.id} className="hover:bg-slate-50/40 transition-colors">
+                      <td className="py-3.5 pr-4">
+                        <div className="flex items-center gap-3">
+                          <Avatar name={u.name} />
+                          <div className="min-w-0">
+                            <p className="font-bold leading-snug text-ink truncate">{u.name}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="inline-flex items-center rounded bg-slate-50 border border-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-text-secondary uppercase">
+                                {u.role}
+                              </span>
+                              <span className="text-[8px] text-text-muted/50">&bull;</span>
+                              <span className="text-[10px] text-text-secondary/70">ID: {u.id}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 text-xs font-semibold text-text-secondary">
+                        {u.branch}
+                      </td>
+                      <td className="pr-4 pl-4 py-3.5 text-right">
+                        <button
+                          onClick={() => handleExportPdf(u)}
+                          disabled={exportingId === u.id}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-hana-border text-xs font-semibold text-text-secondary hover:bg-elevated hover:text-ink transition-colors"
+                        >
+                          {exportingId === u.id ? <Loader2 size={12} className="animate-spin text-hana-teal-600" /> : <FileDown size={12} />}
+                          <span>PDF</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={filteredUsers.length}
+            itemsPerPage={itemsPerPage}
+          />
+        </div>
+
+        {/* AI Generator Panel */}
+        {generating && (
+          <SummarySkeleton usersCount={users.length || 6} showGenerated={true} />
+        )}
+
+        {!generating && (
+          <div className="card text-center py-10 flex flex-col items-center">
+            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-hana-teal-50 text-hana-teal-600 mb-4 shadow-sm border border-hana-teal-100/50">
+              <Bot size={28} />
+            </div>
+            
+            {result ? (
+              <>
+                <p className="text-sm font-bold text-ink mb-1">Laporan Eksekutif AI Berhasil Disusun</p>
+                <p className="text-xs text-text-muted max-w-sm mb-6 leading-relaxed">
+                  Laporan analisis executive brief, ranking, dan risiko telah berhasil diproses untuk tanggal {formatDateID(date)}.
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowAIModal(true)} className="btn-teal !min-h-10 px-5 shadow-sm">
+                    <Bot size={16} />
+                    <span>Lihat Hasil AI Summary</span>
+                  </button>
+                  <button onClick={handleGenerate} className="btn-ghost !min-h-10 px-5 border border-hana-border">
+                    <span>Regenerate</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-bold text-ink mb-1">Generate Laporan Eksekutif Regional</p>
+                <p className="text-xs text-text-muted max-w-sm mb-6 leading-relaxed">
+                  Gunakan AI Studio (Google Gemini) untuk menganalisis dan menyusun Executive Summary, Ranking Kinerja, dan Peringatan Risiko tim regional Anda secara real-time.
+                </p>
+                <button onClick={handleGenerate} className="btn-teal !min-h-10 px-5 shadow-sm">
+                  <Bot size={16} />
+                  <span>Generate Summary Keseluruhan</span>
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+      </div>
+
+      {/* AI Summary Modal Popup */}
+      <AISummaryModal
+        open={showAIModal}
+        onClose={() => setShowAIModal(false)}
+        result={result}
+        date={date}
         users={users}
-        preselect={preselect}
+        teamScored={teamScored}
+        onExportPpt={handleExportPpt}
+        pptBusy={pptBusy}
       />
     </Layout>
   );

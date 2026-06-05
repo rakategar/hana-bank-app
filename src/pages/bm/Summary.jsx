@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Bot, Save, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import Layout from '../../components/Layout';
-import { FullSpinner, ErrorBox, Spinner } from '../../components/ui';
+import { ErrorBox, Spinner, SummarySkeleton } from '../../components/ui';
 import { PersonSummaryCard, ActionPlanEditor } from '../../components/summary';
 import {
   fetchSubordinates,
@@ -26,7 +27,6 @@ export default function BMSummary() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
   const [aiResult, setAiResult] = useState(null);
   const [notes, setNotes] = useState({});
   const [actions, setActions] = useState({});
@@ -53,7 +53,7 @@ export default function BMSummary() {
         setActions(a);
         if (savedData) setAiResult(savedData);
       } catch (e) {
-        setError(e.message || 'Gagal memuat data.');
+        toast.error(e.message || 'Gagal memuat data.');
       } finally {
         setLoading(false);
       }
@@ -62,7 +62,6 @@ export default function BMSummary() {
 
   async function handleGenerate() {
     setGenerating(true);
-    setError('');
     try {
       const fwssData = await Promise.all(
         fwssList.map(async (fwss) => {
@@ -97,7 +96,7 @@ export default function BMSummary() {
       });
       setAiResult(result);
     } catch (e) {
-      setError(e.message || 'Gagal generate summary.');
+      toast.error(e.message || 'Gagal generate summary.');
     } finally {
       setGenerating(false);
     }
@@ -105,7 +104,6 @@ export default function BMSummary() {
 
   async function handleSave(fwssId) {
     setSaving(true);
-    setError('');
     try {
       const fwss = fwssList.find((x) => x.id === fwssId);
       const sum = aiResult?.fwss_summaries?.find((s) => s.fwss_id === fwssId || s.fwss_name === fwss?.name);
@@ -120,7 +118,7 @@ export default function BMSummary() {
       setSavedFor((s) => ({ ...s, [fwssId]: true }));
       setTimeout(() => setSavedFor((s) => ({ ...s, [fwssId]: false })), 2500);
     } catch (e) {
-      setError(e.message || 'Gagal menyimpan.');
+      toast.error(e.message || 'Gagal menyimpan.');
     } finally {
       setSaving(false);
     }
@@ -131,12 +129,11 @@ export default function BMSummary() {
   }
 
   return (
-    <Layout title="Summary Tim" back="/dashboard/bm">
+    <Layout title="Summary Tim">
       {loading ? (
-        <FullSpinner label="Memuat data tim..." />
+        <SummarySkeleton usersCount={fwssList.length || 2} />
       ) : (
         <div className="space-y-4">
-          {error && <ErrorBox>{error}</ErrorBox>}
 
           {!aiResult && (
             <div className="card text-center py-8">
