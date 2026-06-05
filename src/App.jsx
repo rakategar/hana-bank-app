@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 
@@ -36,6 +37,12 @@ function ProtectedRoute({ role, children }) {
 
 export default function App() {
   const { user, ready, isSignedIn, needsOnboarding, dashboardPath } = useAuth();
+
+  // App berhasil mount → reset penanda guard reload chunk (lihat main.jsx),
+  // agar error chunk di kemudian hari masih bisa dipulihkan sekali lagi.
+  useEffect(() => {
+    sessionStorage.removeItem('icu_chunk_reloaded');
+  }, []);
 
   if (!ready) return <Loader />;
 

@@ -8,10 +8,14 @@ import { DemoTimeProvider } from './contexts/DemoTimeContext.jsx';
 import { IS_DEMO, CLERK_PUBLISHABLE_KEY, CLERK_KEY_MISSING } from './lib/appMode';
 import './index.css';
 
-// Reload ketika Chrome memulihkan halaman dari bfcache (back/forward).
-// Auth state bisa basi — lebih aman muat ulang daripada tampilkan layar kosong.
-window.addEventListener('pageshow', (event) => {
-  if (event.persisted) window.location.reload();
+// Pemulihan blank page tanpa memaksa reload tiap kali tombol "kembali" ditekan.
+// Penyebab umum blank page = chunk JS basi setelah deploy baru (dynamic import gagal).
+// Vite memancarkan 'vite:preloadError' → muat ulang SEKALI (dijaga agar tidak loop).
+window.addEventListener('vite:preloadError', () => {
+  if (!sessionStorage.getItem('icu_chunk_reloaded')) {
+    sessionStorage.setItem('icu_chunk_reloaded', '1');
+    window.location.reload();
+  }
 });
 
 // Error boundary — mencegah layar kosong ketika ada render error di sub-tree.
