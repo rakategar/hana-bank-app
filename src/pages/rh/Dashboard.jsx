@@ -137,7 +137,7 @@ function RegionalStatCard({ label, value, helper, icon: Icon, tone }) {
 }
 
 /* ───────── Regional Header ───────── */
-function RegionalHeader({ user, onSummary, onWarning }) {
+function RegionalHeader({ user, onSummary }) {
   const today = new Date();
   const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
   const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -157,9 +157,6 @@ function RegionalHeader({ user, onSummary, onWarning }) {
         <button onClick={onSummary} className="btn-teal !min-h-9 !px-3.5 !py-1.5 text-xs">
           <Bot size={15} /> Generate Summary
         </button>
-        <button onClick={onWarning} className="btn-pink !min-h-9 !px-3.5 !py-1.5 text-xs">
-          <AlertTriangle size={15} /> Kirim Peringatan
-        </button>
       </div>
     </div>
   );
@@ -175,6 +172,7 @@ export default function RHDashboard() {
   const [heatRows, setHeatRows] = useState([]);
   const [warnings, setWarnings] = useState([]);
   const [showWarning, setShowWarning] = useState(false);
+  const [preselectWarning, setPreselectWarning] = useState([]);
   const [detailUser, setDetailUser] = useState(null);
   const [tab, setTab] = useState('monitor');
   const [searchQuery, setSearchQuery] = useState('');
@@ -318,7 +316,6 @@ export default function RHDashboard() {
           <RegionalHeader
             user={user}
             onSummary={() => navigate('/summary/rh')}
-            onWarning={() => setShowWarning(true)}
           />
 
           {/* ── Stat Cards ── */}
@@ -397,13 +394,14 @@ export default function RHDashboard() {
                         <th className="pl-6 pr-4 py-1.5 font-semibold">Nama</th>
                         <th className="px-4 py-1.5 font-semibold">Skor Harian</th>
                         <th className="px-4 py-1.5 font-semibold">Trend</th>
-                        <th className="pr-6 pl-4 py-1.5 font-semibold">Status</th>
+                        <th className="px-4 py-1.5 font-semibold">Status</th>
+                        <th className="pr-6 pl-4 py-1.5 font-semibold text-center">Aksi</th>
                       </tr>
                     </thead>
                     <tbody>
                       {paginatedMonitor.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="py-12 text-center text-text-muted bg-white/30 border border-hana-border/30 rounded-2xl">
+                          <td colSpan={5} className="py-12 text-center text-text-muted bg-white/30 border border-hana-border/30 rounded-2xl">
                             <UsersRound className="mx-auto mb-2 text-text-muted/50" size={32} />
                             <p className="text-sm font-bold text-ink">Tidak ada anggota tim ditemukan</p>
                             <p className="text-xs text-text-muted mt-1">Cari dengan kata kunci lain atau ubah filter status/jabatan.</p>
@@ -473,8 +471,23 @@ export default function RHDashboard() {
                               </td>
 
                               {/* Status Cell */}
-                              <td className="pr-6 pl-4 py-4 bg-white border-y border-r border-hana-border/30 rounded-r-2xl transition-all duration-150">
+                              <td className="px-4 py-4 bg-white border-y border-hana-border/30 transition-all duration-150">
                                 <StatusPill status={r.inputStatus} />
+                              </td>
+
+                              {/* Aksi Cell */}
+                              <td className="pr-6 pl-4 py-4 bg-white border-y border-r border-hana-border/30 rounded-r-2xl text-center transition-all duration-150">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPreselectWarning([r.user.id]);
+                                    setShowWarning(true);
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-hana-pink-200 bg-hana-pink-50/50 hover:bg-hana-pink-50 text-xs font-bold text-hana-pink-600 hover:text-hana-pink-700 hover:border-hana-pink-300 transition-all shadow-sm"
+                                >
+                                  <AlertTriangle size={13} />
+                                  <span>Peringatan</span>
+                                </button>
                               </td>
                             </tr>
                           );
@@ -661,7 +674,17 @@ export default function RHDashboard() {
         </div>
       )}
 
-      <WarningModal open={showWarning} onClose={() => setShowWarning(false)} users={candidateUsers} onSent={load} />
+      <WarningModal
+        key={preselectWarning.join(',')}
+        open={showWarning}
+        onClose={() => {
+          setShowWarning(false);
+          setPreselectWarning([]);
+        }}
+        users={candidateUsers}
+        preselect={preselectWarning}
+        onSent={load}
+      />
       <ActivityDetailModal
         user={detailUser}
         date={detailDate}
