@@ -14,7 +14,7 @@ import {
   upsertSummary,
   createExtraPlan,
 } from '../../lib/db';
-import { summarizeForFwss } from '../../lib/gemini';
+import { summarizeForFwss } from '../../lib/ai';
 import { slotsForRole } from '../../constants/timeSlots';
 import { todayISO, currentWeekId, weekdayDatesOf, nowDate, statusFromLevel } from '../../lib/utils';
 

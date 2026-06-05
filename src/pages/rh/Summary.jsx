@@ -7,7 +7,7 @@ import WarningModal from './WarningModal';
 import { PerformancePill } from '../../components/summary';
 import { FullSpinner, ErrorBox, Spinner } from '../../components/ui';
 import { fetchAllUsers, fetchScore, fetchSummaryFor, fetchDailyActivity } from '../../lib/db';
-import { summarizeForRh } from '../../lib/gemini';
+import { summarizeForRh } from '../../lib/ai';
 import { exportUserDetailPDF, exportOverallPPT, buildTeamStats, lowPerformerIds } from '../../lib/reports';
 import { todayISO, formatDateID, clsx } from '../../lib/utils';
 

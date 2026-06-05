@@ -10,7 +10,7 @@ import {
   fetchSummaryFor,
   upsertSummary,
 } from '../../lib/db';
-import { summarizeForBm } from '../../lib/gemini';
+import { summarizeForBm } from '../../lib/ai';
 import { todayISO, statusFromLevel } from '../../lib/utils';
 
 const ACTION_TEMPLATES = (names) => [

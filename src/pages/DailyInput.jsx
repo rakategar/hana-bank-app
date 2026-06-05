@@ -17,7 +17,7 @@ import {
   fetchExtraPlans,
   createExtraPlan,
 } from '../lib/db';
-import { scoreDailyActivities, isGeminiConfigured } from '../lib/gemini';
+import { scoreDailyActivities, isAiConfigured } from '../lib/ai';
 import {
   todayISO, currentWeekId, dayKeyFromDate, dayLabel, formatDateID,
   slotWindowState, slotWindow, fmtClock, nowDate, DEFAULT_DURATION,
@@ -314,9 +314,9 @@ export default function DailyInput() {
             <span className="text-xs text-text-muted">{openSlots.length} slot terbuka sekarang</span>
           </div>
 
-          {!isGeminiConfigured && (
+          {!isAiConfigured && (
             <div className="rounded-lg border border-score-2/40 bg-score-2/10 px-4 py-3 text-xs text-score-2">
-              Penilaian AI belum aktif (VITE_GEMINI_API_KEY belum diset). Aktivitas tetap dapat
+              Penilaian AI dinonaktifkan (VITE_AI_ENABLED=false). Aktivitas tetap dapat
               disimpan, namun skor AI tidak akan tersedia.
             </div>
           )}

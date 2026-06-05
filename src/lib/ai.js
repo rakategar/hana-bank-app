@@ -1,50 +1,44 @@
 import { rubricToText } from '../constants/scoringRubric';
 import { ROLE_LABELS, serializeStructuredData } from './utils';
 
-const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const MODEL = 'gemini-3.5-flash';
-const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+// Penilaian & ringkasan AI memakai Claude (Sonnet 4.6) lewat proxy serverless /api/ai.
+// API key Anthropic disimpan SERVER-SIDE (tidak pernah masuk bundle browser).
+// VITE_AI_ENABLED hanya untuk banner UI; key sebenarnya tetap di server.
+export const isAiConfigured = (import.meta.env.VITE_AI_ENABLED ?? 'true') !== 'false';
 
-export const isGeminiConfigured = Boolean(GEMINI_KEY);
+const SYSTEM = 'Kamu evaluator & analis untuk program ICU Class Bank Hana. Keluarkan HANYA JSON valid sesuai struktur yang diminta — tanpa teks pembuka/penutup, tanpa markdown, tanpa code fence.';
 
-class GeminiError extends Error {}
+// Hybrid: scoring harian (volume tinggi) pakai Haiku; summary manajerial pakai Sonnet.
+const SCORING_MODEL = 'claude-haiku-4-5';
+const SUMMARY_MODEL = 'claude-sonnet-4-6';
 
-async function callGemini(prompt, { temperature = 0.3 } = {}) {
-  if (!GEMINI_KEY) {
-    throw new GeminiError(
-      'VITE_GEMINI_API_KEY belum diset. Tambahkan di file .env untuk mengaktifkan penilaian AI.'
-    );
+class AiError extends Error {}
+
+async function callClaude(prompt, { model = SUMMARY_MODEL, temperature = 0.3, maxTokens = 2048 } = {}) {
+  let res;
+  try {
+    res = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ system: SYSTEM, user: prompt, model, temperature, max_tokens: maxTokens }),
+    });
+  } catch {
+    throw new AiError('Gagal menghubungi layanan AI. Periksa koneksi internet.');
   }
 
-  const res = await fetch(`${ENDPOINT}?key=${GEMINI_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature,
-        responseMimeType: 'application/json',
-      },
-    }),
-  });
-
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new GeminiError(`Gemini API error (${res.status}): ${text.slice(0, 300)}`);
+    throw new AiError(data?.error || `Layanan AI error (${res.status}).`);
   }
-
-  const data = await res.json();
-  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!raw) throw new GeminiError('Respons Gemini kosong / tidak valid.');
-
-  return parseJson(raw);
+  if (!data?.text) throw new AiError('Respons AI kosong / tidak valid.');
+  return parseJson(data.text);
 }
 
 function parseJson(raw) {
   try {
     return JSON.parse(raw);
   } catch {
-    // fallback: ambil blok JSON pertama
+    // fallback: ambil blok JSON pertama (mis. bila terbungkus prosa/code fence)
     const match = raw.match(/\{[\s\S]*\}/);
     if (match) {
       try {
@@ -53,7 +47,7 @@ function parseJson(raw) {
         /* noop */
       }
     }
-    throw new GeminiError('Gagal memparse JSON dari respons Gemini.');
+    throw new AiError('Gagal memparse JSON dari respons AI.');
   }
 }
 
@@ -104,7 +98,7 @@ level mapping: score 1=CRITICAL, 2=RECOVERY, 3=ON TRACK, 4=HIGH IMPACT.
 Aktivitas yang dievaluasi:
 ${activitiesJSON}`;
 
-  return callGemini(prompt, { temperature: 0.3 });
+  return callClaude(prompt, { model: SCORING_MODEL, temperature: 0.3, maxTokens: 4096 });
 }
 
 // ── 2. SUMMARY FWSS untuk FA ──────────────────────────────
@@ -148,7 +142,7 @@ Output HANYA JSON valid:
   "urgent_actions": ["tindakan mendesak jika ada"]
 }`;
 
-  return callGemini(prompt, { temperature: 0.4 });
+  return callClaude(prompt, { model: SUMMARY_MODEL, temperature: 0.4, maxTokens: 3072 });
 }
 
 // ── 3. SUMMARY BM untuk tim ───────────────────────────────
@@ -192,7 +186,7 @@ Output HANYA JSON valid:
   "urgent_actions": ["tindakan mendesak jika ada"]
 }`;
 
-  return callGemini(prompt, { temperature: 0.4 });
+  return callClaude(prompt, { model: SUMMARY_MODEL, temperature: 0.4, maxTokens: 3072 });
 }
 
 // ── 4. SUMMARY RH keseluruhan ─────────────────────────────
@@ -236,5 +230,5 @@ Output HANYA JSON valid:
   "requires_warning_letter": ["user_id (hanya level CRITICAL/RECOVERY dari FAKTA)"]
 }`;
 
-  return callGemini(prompt, { temperature: 0.3 });
+  return callClaude(prompt, { model: SUMMARY_MODEL, temperature: 0.3, maxTokens: 3072 });
 }

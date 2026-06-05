@@ -19,7 +19,7 @@ berjenjang. Autentikasi memakai **Clerk (login Google)**.
 | Charts / Heatmap | Recharts + komponen kustom |
 | Database & Storage | Supabase (PostgreSQL + Storage) |
 | Autentikasi | Clerk (Google OAuth) — `@clerk/react` |
-| AI Scoring & Summary | Google Gemini (`gemini-3.5-flash`) |
+| AI Scoring & Summary | Claude (Anthropic) — Haiku 4.5 (scoring) + Sonnet 4.6 (summary) via proxy `/api/ai` |
 | Deploy | Vercel |
 
 ---
@@ -32,19 +32,24 @@ npm install
 
 # 2. Salin env & isi nilainya
 cp .env.example .env
-#   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY,
-#   VITE_GEMINI_API_KEY, VITE_CLERK_PUBLISHABLE_KEY
+#   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_CLERK_PUBLISHABLE_KEY,
+#   VITE_AI_ENABLED, dan ANTHROPIC_API_KEY (server-side)
 
 # 3. Jalankan dev server
-npm run dev      # http://localhost:5173
+npm run dev      # http://localhost:5173  (UI saja; /api/ai butuh `vercel dev`)
+
+# Untuk menguji penilaian AI secara lokal (menjalankan serverless /api/ai):
+#   npx vercel dev
 
 # Build produksi
 npm run build && npm run preview
 ```
 
 > Aplikasi membutuhkan **Clerk** (login) dan **Supabase** (data) agar berfungsi.
-> Tanpa `VITE_GEMINI_API_KEY`, aktivitas tetap bisa disimpan namun skor AI tidak
-> tersedia.
+> Penilaian/ringkasan AI memakai **Claude** lewat proxy serverless `/api/ai`; set
+> `ANTHROPIC_API_KEY` (server-side, **tanpa** prefix `VITE_`) di Vercel. Tanpa key tsb,
+> aktivitas tetap bisa disimpan namun skor AI gagal (ErrorBox), dan set
+> `VITE_AI_ENABLED=false` untuk menyembunyikan fitur AI.
 
 ---
 
@@ -73,14 +78,17 @@ Set `VITE_APP_MODE=demo` di Environment Variables Vercel untuk mengaktifkan mode
 atau `live` (atau kosong) untuk mode produksi. Di mode `demo`, `VITE_CLERK_PUBLISHABLE_KEY`
 tidak wajib.
 
-## Setup Gemini
+## Setup AI (Claude / Anthropic)
 
-1. Buat API key di [Google AI Studio](https://aistudio.google.com/app/apikey).
-2. Masukkan ke `VITE_GEMINI_API_KEY` di `.env`.
+1. Buat API key di [Anthropic Console](https://console.anthropic.com/) → API Keys.
+2. Set **`ANTHROPIC_API_KEY`** (server-side, **tanpa** prefix `VITE_`) di Vercel → Project
+   Settings → Environment Variables (dan di `.env` lokal bila memakai `vercel dev`).
+3. Set `VITE_AI_ENABLED=true` agar fitur AI aktif di UI.
 
-> Model yang dipakai: `gemini-3.5-flash`. Jika model ini belum tersedia di akun/region
-> Anda, panggilan scoring/summary bisa gagal (404) — sesuaikan `MODEL` di
-> `src/lib/gemini.js` bila perlu.
+> Arsitektur: client memanggil proxy serverless **`/api/ai`** (`api/ai.js`) yang meneruskan ke
+> Anthropic — key tidak pernah masuk bundle browser. Model: **Haiku 4.5** untuk scoring harian,
+> **Sonnet 4.6** untuk summary (FWSS/BM/RH). Allowlist model ada di `api/ai.js`; pemetaan
+> per-fungsi di `src/lib/ai.js`. Pertimbangkan set spend limit di Console Anthropic.
 
 ## Setup Clerk (login Google)
 
@@ -122,9 +130,10 @@ terdaftar, relasi dapat dikaitkan kemudian.
 ## Struktur Proyek
 
 ```
+api/             ai.js (proxy serverless → Anthropic/Claude)
 src/
 ├── main.jsx · App.jsx · index.css
-├── lib/         supabase, gemini, db, storage, dummyData, utils
+├── lib/         supabase, ai, db, storage, reports, utils
 ├── contexts/    AuthContext
 ├── hooks/       useSalesDashboard
 ├── constants/   timeSlots, scoringRubric
@@ -141,10 +150,10 @@ docs/            ARCHITECTURE.md, USERS.md, BRAND_GUIDELINES.md,
 
 ## Deploy ke Vercel
 
-1. Import repo di Vercel (framework: **Vite**).
+1. Import repo di Vercel (framework: **Vite**). Fungsi di `api/` otomatis dideploy sebagai serverless.
 2. Set Environment Variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
-   `VITE_GEMINI_API_KEY`.
-3. Deploy. `vercel.json` sudah mengatur SPA rewrite.
+   `VITE_CLERK_PUBLISHABLE_KEY`, `VITE_AI_ENABLED`, dan **`ANTHROPIC_API_KEY`** (server-side).
+3. Deploy. `vercel.json` sudah mengatur SPA rewrite & cache headers.
 
 ---
 
