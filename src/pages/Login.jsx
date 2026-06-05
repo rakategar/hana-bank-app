@@ -56,7 +56,7 @@ export default function Login() {
 
       {/* Auth panel */}
       <div className="flex flex-col bg-charcoal min-h-screen lg:min-h-0">
-        <div className="flex-1 w-full max-w-md mx-auto px-5 py-10 flex flex-col justify-center">
+        <div className={`flex-1 w-full mx-auto px-5 py-10 flex flex-col justify-center ${IS_DEMO ? 'max-w-2xl' : 'max-w-md'}`}>
           <div className="lg:hidden flex flex-col items-center text-center mb-6">
             <img src={logo} alt="Bank Hana" className="h-14 w-14 mb-2" />
             <h1 className="font-display text-2xl font-extrabold">ICU CLASS</h1>

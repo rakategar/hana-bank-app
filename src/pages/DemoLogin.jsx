@@ -73,7 +73,7 @@ export default function DemoLogin() {
 
   return (
     <>
-      <div className="mb-5">
+      <div className="mb-6 text-center">
         <h2 className="font-display text-2xl font-bold">Masuk (Mode Demo)</h2>
         <p className="text-sm text-text-secondary mt-1">Klik salah satu kartu untuk langsung masuk.</p>
       </div>
@@ -87,14 +87,15 @@ export default function DemoLogin() {
           <div className="space-y-5">
             {roleGroups.map(({ role, list }) => (
               <div key={role}>
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center justify-center gap-2 mb-2.5">
                   <span className="text-xs font-display font-bold uppercase tracking-wide text-text-secondary">{ROLE_LABELS[role] || role}</span>
                   <span className="text-[10px] font-semibold text-hana-teal-700 bg-hana-teal-50 rounded-full px-2 py-0.5">{role}</span>
-                  <span className="flex-1 border-t border-hana-border" />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-wrap justify-center gap-3">
                   {list.map((u) => (
-                    <UserCard key={u.id} user={u} onClick={doLogin} />
+                    <div key={u.id} className="w-44">
+                      <UserCard user={u} onClick={doLogin} />
+                    </div>
                   ))}
                 </div>
               </div>

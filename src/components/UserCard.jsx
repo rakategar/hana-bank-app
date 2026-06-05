@@ -18,7 +18,7 @@ export default function UserCard({ user, onClick }) {
   return (
     <button
       onClick={() => onClick(user)}
-      className="card text-left hover:border-hana-teal-500 hover:shadow-elevated transition-all group focus:outline-none focus:shadow-focus"
+      className="card w-full text-left hover:border-hana-teal-500 hover:shadow-elevated transition-all group focus:outline-none focus:shadow-focus"
     >
       <div className="flex items-center gap-3">
         <div

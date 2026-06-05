@@ -403,7 +403,7 @@ export default function DailyInput() {
           <div className="sticky bottom-4">
             <button onClick={handleSubmitScore} disabled={Boolean(busy)} className="btn-pink w-full">
               {busy === 'scoring' && <Spinner size={18} className="text-white" />}
-              {busy === 'scoring' ? 'AI sedang menilai...' : 'Submit & Minta Penilaian AI'}
+              {busy === 'scoring' ? 'AI sedang menilai...' : 'Submit'}
             </button>
           </div>
         </div>
