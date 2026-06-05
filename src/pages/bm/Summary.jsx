@@ -14,12 +14,59 @@ import {
 import { summarizeForBm } from '../../lib/gemini';
 import { todayISO, statusFromLevel } from '../../lib/utils';
 
+const SHOW_TEMP_BM_SUMMARY = false;
+
 const ACTION_TEMPLATES = (names) => [
   ...names.map((n) => `Coaching FWSS ${n}`),
   'Support high-potential customer case',
   'Joint meeting dengan tim',
   'Eskalasi ke RH',
 ];
+
+function buildTemporaryBmSummary(fwssList) {
+  const statuses = ['ON TRACK', 'RECOVERY', 'HIGH IMPACT', 'CRITICAL'];
+  const summaries = fwssList.map((fwss, index) => {
+    const status = statuses[index % statuses.length];
+    return {
+      fwss_id: fwss.id,
+      fwss_name: fwss.name,
+      performance_status: status,
+      summary:
+        status === 'HIGH IMPACT'
+          ? `${fwss.name} menunjukkan eksekusi tim yang kuat, disiplin follow-up baik, dan beberapa FA mulai stabil di aktivitas prioritas.`
+          : status === 'ON TRACK'
+            ? `${fwss.name} berada pada jalur yang cukup baik, namun masih perlu menjaga konsistensi coaching dan kontrol pipeline harian.`
+            : status === 'RECOVERY'
+              ? `${fwss.name} membutuhkan penguatan monitoring dan intervensi lebih cepat pada FA dengan aktivitas rendah.`
+              : `${fwss.name} perlu perhatian segera karena disiplin input dan kualitas tindak lanjut tim belum cukup terlihat hari ini.`,
+      highlights: [
+        'Pipeline prioritas mulai terpetakan untuk tindak lanjut cabang.',
+        'Koordinasi harian dengan FA berjalan dan dapat dipantau.',
+      ],
+      risks: [
+        'Sebagian FA masih membutuhkan arahan lebih konkret pada slot closing.',
+        'Dokumentasi hasil aktivitas belum konsisten di semua anggota tim.',
+      ],
+      bm_recommendations: [
+        `Lakukan coaching singkat dengan ${fwss.name} pada fokus pipeline dan recovery action.`,
+        'Prioritaskan joint meeting untuk customer dengan potensi konversi tinggi.',
+        'Minta update CRM dan bukti aktivitas sebelum end day review.',
+      ],
+    };
+  });
+
+  return {
+    team_overall:
+      'Ringkasan sementara: performa tim cabang menunjukkan aktivitas yang mulai terstruktur, namun masih perlu penguatan pada disiplin input, kontrol pipeline, dan follow-up closing. BM disarankan memprioritaskan FWSS dengan status recovery/critical untuk coaching harian dan memastikan setiap action plan memiliki owner serta tenggat yang jelas.',
+    urgent_actions: [
+      'Validasi FWSS dengan aktivitas tim paling rendah sebelum end day review.',
+      'Tetapkan joint meeting untuk pipeline high-potential yang belum bergerak.',
+      'Pastikan setiap FWSS mengunci recovery action untuk FA yang belum mencapai target harian.',
+    ],
+    fwss_summaries: summaries,
+    temporary: true,
+  };
+}
 
 export default function BMSummary() {
   const { user } = useAuth();
@@ -52,6 +99,7 @@ export default function BMSummary() {
         setNotes(n);
         setActions(a);
         if (savedData) setAiResult(savedData);
+        else if (SHOW_TEMP_BM_SUMMARY) setAiResult(buildTemporaryBmSummary(subs));
       } catch (e) {
         toast.error(e.message || 'Gagal memuat data.');
       } finally {
@@ -150,7 +198,12 @@ export default function BMSummary() {
 
           {aiResult && (
             <>
-              <div className="flex justify-end">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                {aiResult.temporary ? (
+                  <div className="rounded-2xl border border-score-2/25 bg-score-2/10 px-4 py-3 text-xs font-semibold text-score-2">
+                    Preview sementara tanpa API key. Data ini hanya untuk melihat UI summary BM.
+                  </div>
+                ) : <span />}
                 <button onClick={handleGenerate} disabled={generating} className="btn-ghost !py-2 text-xs">
                   {generating ? <Spinner size={14} /> : <Bot size={14} />} Regenerate
                 </button>
