@@ -4,9 +4,12 @@ import { BrowserRouter } from 'react-router-dom';
 import { ClerkProvider } from '@clerk/react';
 import App from './App.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
-import { DemoTimeProvider } from './contexts/DemoTimeContext.jsx';
-import { IS_DEMO, CLERK_PUBLISHABLE_KEY, CLERK_KEY_MISSING } from './lib/appMode';
+import { CLERK_PUBLISHABLE_KEY, CLERK_KEY_MISSING } from './lib/appMode';
 import './index.css';
+
+// Clear stale demo session/clock data from localStorage
+try { localStorage.removeItem('icu_demo_now'); } catch {}
+try { localStorage.removeItem('icu_session'); } catch {};
 
 // Pemulihan blank page tanpa memaksa reload tiap kali tombol "kembali" ditekan.
 // Penyebab umum blank page = chunk JS basi setelah deploy baru (dynamic import gagal).
@@ -70,16 +73,7 @@ function ClerkKeyMissing() {
   );
 }
 
-// Demo: DemoTimeProvider (kontrol waktu) + tanpa Clerk.
-// Live: ClerkProvider (login Google) + tanpa demo clock.
 function Providers({ children }) {
-  if (IS_DEMO) {
-    return (
-      <DemoTimeProvider>
-        <AuthProvider>{children}</AuthProvider>
-      </DemoTimeProvider>
-    );
-  }
   if (CLERK_KEY_MISSING) {
     return <ClerkKeyMissing />;
   }

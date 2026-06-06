@@ -6,8 +6,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { initials, ROLE_LABELS, clsx } from '../lib/utils';
-import { IS_DEMO } from '../lib/appMode';
-import DemoClock from './DemoClock';
 import logo from '/hana-bank-logo.png';
 
 function navForRole(role) {
@@ -123,8 +121,6 @@ export default function Layout({ children, title, back, unreadCount = 0 }) {
             <h1 className="font-display text-xl font-bold truncate flex-1">
               {title || 'Dashboard'}
             </h1>
-
-            {IS_DEMO && <DemoClock />}
 
             {unreadCount > 0 && (
               <div className="relative">

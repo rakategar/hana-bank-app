@@ -8,6 +8,7 @@ import TeamHeatmap from '../../components/TeamHeatmap';
 import ScoreBadge from '../../components/ScoreBadge';
 import ActivityDetailModal from '../../components/ActivityDetailModal';
 import WarningModal from './WarningModal';
+import UserManagementPanel from './UserManagementPanel';
 import { FullSpinner, ErrorBox, StatusPill } from '../../components/ui';
 import { SectionTitle } from '../../components/dashboard';
 import { fetchAllUsers, fetchUserDaySnapshot, fetchScoreRange, fetchWarningsFrom } from '../../lib/db';
@@ -28,6 +29,7 @@ export default function RHDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [rows, setRows] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [heatRows, setHeatRows] = useState([]);
   const [warnings, setWarnings] = useState([]);
   const [showWarning, setShowWarning] = useState(false);
@@ -39,6 +41,7 @@ export default function RHDashboard() {
     setError('');
     try {
       const all = await fetchAllUsers();
+      setAllUsers(all);
       const team = all.filter((u) => u.role !== 'RH');
       const dates = lastNDates(10);
       const yesterday = dates[dates.length - 2];
@@ -105,7 +108,7 @@ export default function RHDashboard() {
           </div>
 
           <div className="flex gap-2 border-b border-hana-border">
-            {[['monitor', 'Monitoring'], ['log', 'Log Surat Peringatan']].map(([k, label]) => (
+            {[['monitor', 'Monitoring'], ['log', 'Log Peringatan'], ['users', 'Manajemen User']].map(([k, label]) => (
               <button
                 key={k}
                 onClick={() => setTab(k)}
@@ -119,7 +122,9 @@ export default function RHDashboard() {
             ))}
           </div>
 
-          {tab === 'monitor' ? (
+          {tab === 'users' ? (
+            <UserManagementPanel users={allUsers} onRefresh={load} />
+          ) : tab === 'monitor' ? (
             <>
               <div className="card !p-0 overflow-hidden">
                 <table className="w-full text-sm">

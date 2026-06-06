@@ -20,7 +20,7 @@ import {
 import { scoreDailyActivities, isAiConfigured } from '../lib/ai';
 import {
   todayISO, currentWeekId, dayKeyFromDate, dayLabel, formatDateID,
-  slotWindowState, slotWindow, fmtClock, nowDate, DEFAULT_DURATION,
+  slotWindow, fmtClock, nowDate, DEFAULT_DURATION,
   serializeStructuredData, isStructuredFilled,
 } from '../lib/utils';
 
@@ -94,15 +94,13 @@ function syncActual(s) {
 }
 
 function applyGating(slots, date) {
+  const today = todayISO();
+  if (date >= today) return slots.map(syncActual); // Hari ini: semua slot terbuka
+  // Hari lampau: kunci status, biarkan notes bisa diisi lewat save
   return slots.map((s0) => {
     const s = syncActual(s0);
-    const state = slotWindowState(date, s.time, s.endTime);
-    if (state === 'closed') {
-      // Slot yang sudah diselesaikan tepat waktu (done/partial) dipertahankan.
-      if (s.activity_status === 'done' || s.activity_status === 'partial') return s;
-      return { ...s, activity_status: 'not_done' };
-    }
-    return s;
+    if (s.activity_status === 'done' || s.activity_status === 'partial') return s;
+    return { ...s, activity_status: 'not_done' };
   });
 }
 
@@ -294,9 +292,12 @@ export default function DailyInput() {
 
   const now = nowDate();
   const viewSlots = applyGating(slots, date);
+  const isPastDay = date < todayISO();
 
-  const openSlots = viewSlots.filter((s) => slotWindowState(date, s.time, s.endTime) === 'open');
-  const otherSlots = viewSlots.filter((s) => slotWindowState(date, s.time, s.endTime) !== 'open');
+  // Hari ini: semua slot terbuka (tidak ada lock per-slot 30 menit)
+  // Hari lampau: semua slot dikunci, alasan masih bisa diisi
+  const openSlots = isPastDay ? [] : viewSlots;
+  const otherSlots = isPastDay ? viewSlots : [];
 
   return (
     <Layout title="Input Aktivitas Hari Ini" back={true}>
@@ -311,7 +312,9 @@ export default function DailyInput() {
               <span className="font-semibold">{dayLabel(dayKey)}</span>
               <span className="text-text-muted"> · {formatDateID(date)} · {fmtClock(now)}</span>
             </div>
-            <span className="text-xs text-text-muted">{openSlots.length} slot terbuka sekarang</span>
+            <span className="text-xs text-text-muted">
+              {isPastDay ? 'Input hari ini sudah ditutup' : `${viewSlots.length} slot aktif hari ini`}
+            </span>
           </div>
 
           {!isAiConfigured && (
@@ -329,12 +332,11 @@ export default function DailyInput() {
 
           {savedAt && <p className="text-[11px] text-text-muted -mt-1">Draft tersimpan · {savedAt.toLocaleTimeString('id-ID')}</p>}
 
-          {/* Slot yang sedang terbuka */}
+          {/* Slot aktif hari ini */}
           {openSlots.length > 0 ? (
             <div className="grid lg:grid-cols-2 gap-4">
               {openSlots.map((slot) => {
                 const idx = viewSlots.indexOf(slot);
-                const state = slotWindowState(date, slot.time, slot.endTime);
                 const { start, end } = slotWindow(date, slot.time, slot.endTime);
                 return (
                   <ActivitySlot
@@ -344,7 +346,7 @@ export default function DailyInput() {
                     date={date}
                     users={users}
                     formSchema={slot.extra ? [] : formSchemaFor(user.role, slot.time)}
-                    windowState={state}
+                    windowState="open"
                     startLabel={fmtClock(start)}
                     endLabel={fmtClock(end)}
                     onChange={(next) => updateSlot(idx, next)}
@@ -356,11 +358,11 @@ export default function DailyInput() {
             </div>
           ) : (
             <div className="card text-center py-8 text-text-muted text-sm">
-              Belum ada slot yang terbuka sekarang.
+              Input hari sebelumnya sudah dikunci. Anda masih dapat menambahkan alasan di bawah.
             </div>
           )}
 
-          {/* Tombol tampilkan slot lainnya */}
+          {/* Slot dari hari lampau (dikunci, alasan masih bisa diisi) */}
           {otherSlots.length > 0 && (
             <div>
               <button
@@ -368,14 +370,13 @@ export default function DailyInput() {
                 className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-text-secondary border border-hana-border rounded-lg hover:bg-elevated transition-colors"
               >
                 {showOthers ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                {showOthers ? 'Sembunyikan' : `Tampilkan ${otherSlots.length} slot lainnya`}
+                {showOthers ? 'Sembunyikan' : `Tampilkan ${otherSlots.length} slot (hari lampau)`}
               </button>
 
               {showOthers && (
                 <div className="grid lg:grid-cols-2 gap-4 mt-4">
                   {otherSlots.map((slot) => {
                     const idx = viewSlots.indexOf(slot);
-                    const state = slotWindowState(date, slot.time, slot.endTime);
                     const { start, end } = slotWindow(date, slot.time, slot.endTime);
                     return (
                       <ActivitySlot
@@ -385,11 +386,11 @@ export default function DailyInput() {
                         date={date}
                         users={users}
                         formSchema={slot.extra ? [] : formSchemaFor(user.role, slot.time)}
-                        windowState={state}
+                        windowState="closed"
                         startLabel={fmtClock(start)}
                         endLabel={fmtClock(end)}
                         onChange={(next) => updateSlot(idx, next)}
-                        onSave={state !== 'upcoming' ? () => handleSaveSlot(idx) : undefined}
+                        onSave={() => handleSaveSlot(idx)}
                         saving={busySlot === idx}
                       />
                     );

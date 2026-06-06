@@ -7,7 +7,7 @@ import SlotFormRenderer from '../components/SlotFormRenderer';
 import { FullSpinner, ErrorBox } from '../components/ui';
 import { emptyPlanByDay, normalizePlanByDay, formSchemaFor } from '../constants/timeSlots';
 import { fetchWeeklyPlan, upsertWeeklyPlan, fetchSubordinates, fetchUserMaybe } from '../lib/db';
-import { currentWeekId, WEEKDAYS, dayKeyFromDate, isStructuredFilled, isWeeklyPlanOpen, nowDate, clsx } from '../lib/utils';
+import { currentWeekId, WEEKDAYS, dayKeyFromDate, isStructuredFilled, isWeeklyPlanOpen, nowDate, clsx, weekdayDatesOf } from '../lib/utils';
 
 export default function WeeklyPlan() {
   const { user } = useAuth();
@@ -22,6 +22,7 @@ export default function WeeklyPlan() {
   const [submitted, setSubmitted] = useState(false);
 
   const planOpen = isWeeklyPlanOpen(nowDate());
+  const weekDates = weekdayDatesOf(nowDate());
 
   useEffect(() => {
     (async () => {
@@ -108,20 +109,21 @@ export default function WeeklyPlan() {
 
           {/* Tab hari Senin–Jumat */}
           <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {WEEKDAYS.map((w) => {
+            {WEEKDAYS.map((w, i) => {
               const dayFilled = (planByDay[w.key] || []).some((s) => isStructuredFilled(s.data));
+              const dateLabel = weekDates[i]?.label || w.label;
               return (
                 <button
                   key={w.key}
                   onClick={() => setActiveDay(w.key)}
                   className={clsx(
-                    'px-4 py-2 rounded-lg text-sm font-semibold border whitespace-nowrap transition-colors',
+                    'px-3 py-2 rounded-lg text-sm font-semibold border whitespace-nowrap transition-colors',
                     activeDay === w.key
                       ? 'bg-hana-teal-500 text-white border-hana-teal-500'
                       : 'bg-white text-text-secondary border-hana-border hover:border-hana-teal-500'
                   )}
                 >
-                  {w.label}
+                  {dateLabel}
                   {dayFilled && <span className={clsx('ml-1.5 inline-block h-1.5 w-1.5 rounded-full', activeDay === w.key ? 'bg-white' : 'bg-hana-teal-500')} />}
                 </button>
               );

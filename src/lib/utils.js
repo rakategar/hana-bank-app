@@ -172,6 +172,20 @@ export function weekdayDatesOf(date = nowDate()) {
   });
 }
 
+// Cek apakah dateStr masih dalam minggu kerja yang sama dengan hari ini (Senin–Jumat).
+export function isCurrentWeek(dateStr) {
+  const d = new Date(dateStr);
+  const today = new Date(nowDate());
+  const dayOfWeek = (today.getDay() + 6) % 7; // 0=Senin
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - dayOfWeek);
+  monday.setHours(0, 0, 0, 0);
+  const friday = new Date(monday);
+  friday.setDate(monday.getDate() + 4);
+  friday.setHours(23, 59, 59, 999);
+  return d >= monday && d <= friday;
+}
+
 // ── Time-gating aktivitas ─────────────────────────────────
 export function fmtClock(d) {
   const h = String(new Date(d).getHours()).padStart(2, '0');

@@ -47,6 +47,38 @@ export async function upsertUserProfile({ id, name, role, branch, supervisorId }
   return data;
 }
 
+export async function updateUser(userId, { name, role, branch, supervisorId }) {
+  const payload = {};
+  if (name !== undefined) payload.name = name;
+  if (role !== undefined) payload.role = role;
+  if (branch !== undefined) payload.branch = branch || null;
+  if (supervisorId !== undefined) payload.supervisor_id = supervisorId || null;
+  const { data, error } = await supabase
+    .from('users')
+    .update(payload)
+    .eq('id', userId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteUser(userId) {
+  // Hapus data terkait dulu (foreign key constraints)
+  await supabase.from('warnings').delete().eq('from_id', userId);
+  await supabase.from('warnings').delete().eq('to_id', userId);
+  await supabase.from('supervisor_summaries').delete().eq('supervisor_id', userId);
+  await supabase.from('supervisor_summaries').delete().eq('target_user_id', userId);
+  await supabase.from('ai_scores').delete().eq('user_id', userId);
+  await supabase.from('extra_plans').delete().eq('user_id', userId);
+  await supabase.from('daily_activities').delete().eq('user_id', userId);
+  await supabase.from('weekly_plans').delete().eq('user_id', userId);
+  // Null-out supervisor_id subordinat yang lapor ke user ini
+  await supabase.from('users').update({ supervisor_id: null }).eq('supervisor_id', userId);
+  const { error } = await supabase.from('users').delete().eq('id', userId);
+  if (error) throw error;
+}
+
 export async function fetchSubordinates(supervisorId) {
   const { data, error } = await supabase
     .from('users')

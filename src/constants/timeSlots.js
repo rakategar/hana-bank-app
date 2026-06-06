@@ -16,7 +16,7 @@ export const FA_SLOTS = [
 ];
 
 export const FWSS_SLOTS = [
-  { time: '07:30', endTime: '08:00', label: 'Daily Recovery Direction & Target Lock' },
+  { time: '07:30', endTime: '08:00', label: 'Morning Briefing & Daily Recovery Direction' },
   { time: '08:00', endTime: '09:00', label: 'Pipeline Control & FA Monitoring' },
   { time: '09:00', endTime: '10:00', label: 'Morning Activation & Sales Recovery' },
   { time: '10:00', endTime: '11:00', label: 'Branch Opportunity & Lead Activation' },
@@ -31,7 +31,7 @@ export const FWSS_SLOTS = [
 ];
 
 export const BM_SLOTS = [
-  { time: '07:30', endTime: '08:00', label: 'Business Direction & Daily Alignment' },
+  { time: '07:30', endTime: '08:00', label: 'Morning Briefing & Business Direction' },
   { time: '08:00', endTime: '09:00', label: 'Pipeline Monitoring & Priority Support' },
   { time: '09:00', endTime: '10:00', label: 'Morning Support & Team Reinforcement' },
   { time: '10:00', endTime: '11:00', label: 'Branch Coordination & Business Opportunity' },

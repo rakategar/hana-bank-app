@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { useUser, useClerk } from '@clerk/react';
 import { setUserContext, clearUserContext } from '../lib/supabase';
 import { fetchUserMaybe } from '../lib/db';
-import { IS_DEMO } from '../lib/appMode';
 
 const AuthContext = createContext(null);
 
@@ -89,59 +88,8 @@ function ClerkAuthProvider({ children }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// ── DEMO: sesi disimpan di localStorage (one-click login) ─
-const SESSION_KEY = 'icu_session';
-
-function DemoAuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(SESSION_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.id) {
-          setUser(parsed);
-          setUserContext(parsed.id);
-        }
-      }
-    } catch {
-      localStorage.removeItem(SESSION_KEY);
-    }
-    setReady(true);
-  }, []);
-
-  const login = useCallback((userObj) => {
-    setUser(userObj);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(userObj));
-    setUserContext(userObj.id);
-  }, []);
-
-  const logout = useCallback(() => {
-    setUser(null);
-    localStorage.removeItem(SESSION_KEY);
-    clearUserContext();
-  }, []);
-
-  const value = {
-    mode: 'demo',
-    user,
-    clerkIdentity: null,
-    isSignedIn: Boolean(user),
-    ready,
-    needsOnboarding: false,
-    refreshProfile: () => {},
-    login,
-    logout,
-    dashboardPath: dashboardPathFor,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
 export function AuthProvider({ children }) {
-  return IS_DEMO ? <DemoAuthProvider>{children}</DemoAuthProvider> : <ClerkAuthProvider>{children}</ClerkAuthProvider>;
+  return <ClerkAuthProvider>{children}</ClerkAuthProvider>;
 }
 
 export function useAuth() {

@@ -1,10 +1,7 @@
 import { ShieldCheck } from 'lucide-react';
 import { SignIn } from '@clerk/react';
-import { IS_DEMO } from '../lib/appMode';
-import DemoLogin from './DemoLogin';
 import logo from '/hana-bank-logo.png';
 
-// Tampilan Clerk disesuaikan dengan brand (teal) — Google-only diatur di dashboard Clerk.
 const clerkAppearance = {
   variables: {
     colorPrimary: '#04B292',
@@ -56,33 +53,27 @@ export default function Login() {
 
       {/* Auth panel */}
       <div className="flex flex-col bg-charcoal min-h-screen lg:min-h-0">
-        <div className={`flex-1 w-full mx-auto px-5 py-10 flex flex-col justify-center ${IS_DEMO ? 'max-w-2xl' : 'max-w-md'}`}>
+        <div className="flex-1 w-full mx-auto px-5 py-10 flex flex-col justify-center max-w-md">
           <div className="lg:hidden flex flex-col items-center text-center mb-6">
             <img src={logo} alt="Bank Hana" className="h-14 w-14 mb-2" />
             <h1 className="font-display text-2xl font-extrabold">ICU CLASS</h1>
             <p className="text-hana-teal-600 font-display font-bold text-sm">BANK HANA</p>
           </div>
 
-          {IS_DEMO ? (
-            <DemoLogin />
-          ) : (
-            <>
-              <div className="mb-5">
-                <h2 className="font-display text-2xl font-bold">Masuk ke Akun Anda</h2>
-                <p className="text-sm text-text-secondary mt-1">
-                  Masuk atau daftar menggunakan akun Google Anda untuk melanjutkan.
-                </p>
-              </div>
+          <div className="mb-5">
+            <h2 className="font-display text-2xl font-bold">Masuk ke Akun Anda</h2>
+            <p className="text-sm text-text-secondary mt-1">
+              Masuk atau daftar menggunakan akun Google Anda untuk melanjutkan.
+            </p>
+          </div>
 
-              <div className="card">
-                <SignIn appearance={clerkAppearance} routing="hash" signUpUrl="#/sign-up" />
-              </div>
+          <div className="card">
+            <SignIn appearance={clerkAppearance} routing="hash" signUpUrl="#/sign-up" />
+          </div>
 
-              <p className="flex items-center gap-1.5 text-[11px] text-text-muted mt-6 justify-center">
-                <ShieldCheck size={13} /> Autentikasi aman oleh Clerk
-              </p>
-            </>
-          )}
+          <p className="flex items-center gap-1.5 text-[11px] text-text-muted mt-6 justify-center">
+            <ShieldCheck size={13} /> Autentikasi aman oleh Clerk
+          </p>
         </div>
       </div>
     </div>

@@ -198,7 +198,7 @@ export default function ActivitySlot({
           </div>
 
           <div className="mt-3">
-            <label className="label">{isClosed ? 'Bukti (pendukung alasan)' : 'Bukti (foto/PDF, auto-kompres)'}</label>
+            <label className="label">{isClosed ? 'Bukti (pendukung alasan)' : 'Bukti (foto/PDF)'}</label>
             {slot.image_url ? (
               isPdf ? (
                 <div className="flex items-center gap-3">
