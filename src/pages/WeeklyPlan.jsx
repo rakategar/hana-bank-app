@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, CheckCircle2, Lock } from 'lucide-react';
+import { Save, CheckCircle2, Lock, Users } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import SlotFormRenderer from '../components/SlotFormRenderer';
 import { FullSpinner, ErrorBox } from '../components/ui';
 import { emptyPlanByDay, normalizePlanByDay, formSchemaFor } from '../constants/timeSlots';
 import { fetchWeeklyPlan, upsertWeeklyPlan, fetchSubordinates, fetchUserMaybe } from '../lib/db';
-import { currentWeekId, WEEKDAYS, dayKeyFromDate, isStructuredFilled, isWeeklyPlanOpen, nowDate, clsx, weekdayDatesOf } from '../lib/utils';
+import { currentWeekId, nextWeekId, nextWeekDate, WEEKDAYS, dayKeyFromDate, isStructuredFilled, isWeeklyPlanOpen, nowDate, clsx, weekdayDatesOf } from '../lib/utils';
 
 export default function WeeklyPlan() {
   const { user } = useAuth();
@@ -22,13 +22,16 @@ export default function WeeklyPlan() {
   const [submitted, setSubmitted] = useState(false);
 
   const planOpen = isWeeklyPlanOpen(nowDate());
-  const weekDates = weekdayDatesOf(nowDate());
+  // Saat plan terbuka (Jumat/tanggal khusus) → tampilkan & simpan untuk MINGGU DEPAN.
+  // Saat plan ditutup (hari kerja) → tampilkan rencana minggu berjalan (read-only).
+  const targetWeekId = planOpen ? nextWeekId() : currentWeekId();
+  const weekDates = planOpen ? weekdayDatesOf(nextWeekDate()) : weekdayDatesOf(nowDate());
 
   useEffect(() => {
     (async () => {
       try {
         const [existing, supervisor, subordinates] = await Promise.all([
-          fetchWeeklyPlan(user.id, currentWeekId()),
+          fetchWeeklyPlan(user.id, targetWeekId),
           user.supervisor_id ? fetchUserMaybe(user.supervisor_id) : Promise.resolve(null),
           fetchSubordinates(user.id),
         ]);
@@ -56,7 +59,7 @@ export default function WeeklyPlan() {
   }
 
   async function persist(next, submit) {
-    await upsertWeeklyPlan({ userId: user.id, role: user.role, slots: next, submit });
+    await upsertWeeklyPlan({ userId: user.id, role: user.role, weekId: targetWeekId, slots: next, submit });
   }
 
   async function save(submit) {
@@ -76,7 +79,7 @@ export default function WeeklyPlan() {
   }
 
   return (
-    <Layout title="Rencana Minggu Ini" back={true}>
+    <Layout title={planOpen ? 'Rencana Minggu Depan' : 'Rencana Minggu Ini'} back={true}>
       {loading ? (
         <FullSpinner label="Memuat rencana..." />
       ) : (
@@ -84,11 +87,13 @@ export default function WeeklyPlan() {
           {error && <ErrorBox>{error}</ErrorBox>}
 
           <div className="card">
-            <p className="text-sm font-semibold">{currentWeekId()} · {user.role}</p>
-            <p className="text-xs text-text-muted mt-0.5">Jadwalkan aktivitas Senin–Jumat</p>
+            <p className="text-sm font-semibold">{targetWeekId} · {user.role}</p>
+            <p className="text-xs text-text-muted mt-0.5">
+              {planOpen ? 'Rencanakan aktivitas Senin–Jumat minggu depan' : 'Jadwal aktivitas Senin–Jumat minggu ini'}
+            </p>
             {submitted && (
               <p className="inline-flex items-center gap-1.5 text-xs text-score-4 mt-2">
-                <CheckCircle2 size={14} /> Rencana minggu ini sudah disubmit
+                <CheckCircle2 size={14} /> Rencana {planOpen ? 'minggu depan' : 'minggu ini'} sudah disubmit
               </p>
             )}
           </div>
@@ -99,10 +104,24 @@ export default function WeeklyPlan() {
                 <Lock size={16} /> Weekly Plan sedang ditutup
               </p>
               <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">
-                Penyusunan rencana mingguan dibuka tiap <b>Jumat</b> serta <b>5–7 Juni</b>. Di luar
+                Penyusunan rencana mingguan dibuka tiap <b>Jumat</b> serta <b>5–8 Juni</b>. Di luar
                 jadwal itu Anda hanya dapat melihat rencana yang sudah tersimpan. Untuk menambah
                 kegiatan di tengah minggu (mis. follow-up lead), gunakan <b>Tambah Rencana Tambahan</b> di
                 halaman <b>Input Aktivitas</b>.
+              </p>
+            </div>
+          )}
+
+          {/* Notifikasi jika belum ada bawahan terdeteksi (untuk FWSS/BM) */}
+          {['FWSS', 'BM'].includes(user.role) && !loading && users.subordinates.length === 0 && (
+            <div className="card border-score-2/40 bg-score-2/10">
+              <p className="flex items-center gap-2 text-sm font-semibold text-score-2">
+                <Users size={16} /> Belum ada bawahan terdeteksi
+              </p>
+              <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">
+                Pastikan akun {user.role === 'FWSS' ? 'FA' : 'FWSS'} yang Anda bimbing sudah mendaftar
+                dan memilih Anda sebagai atasan saat onboarding. Jika sudah terdaftar tapi belum muncul,
+                minta mereka masuk ke halaman onboarding dan pilih ulang atasannya.
               </p>
             </div>
           )}

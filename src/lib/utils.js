@@ -141,11 +141,23 @@ export function dayKeyFromDate(date = nowDate()) {
 // Weekly Plan hanya dibuka pada tanggal peluncuran 5–7 Juni 2026, lalu tiap Jumat.
 // Di luar itu, halaman rencana tertutup (read-only). Memakai nowDate() → demo clock
 // dapat mensimulasikan hari buka saat presentasi.
-export const WEEKLY_PLAN_SPECIAL_DATES = ['2026-06-05', '2026-06-06', '2026-06-07'];
+export const WEEKLY_PLAN_SPECIAL_DATES = ['2026-06-05', '2026-06-06', '2026-06-07', '2026-06-08'];
 export function isWeeklyPlanOpen(date = nowDate()) {
   const iso = formatDateISO(date);
   if (WEEKLY_PLAN_SPECIAL_DATES.includes(iso)) return true;
   return new Date(date).getDay() === 5; // Jumat
+}
+
+// Tanggal 7 hari ke depan dari `date` (untuk perencanaan minggu depan)
+export function nextWeekDate(date = nowDate()) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + 7);
+  return d;
+}
+
+// ISO week ID minggu depan, mis. "2026-W24"
+export function nextWeekId(date = nowDate()) {
+  return currentWeekId(nextWeekDate(date));
 }
 export function dayLabel(key) {
   return WEEKDAYS.find((w) => w.key === key)?.label || key;

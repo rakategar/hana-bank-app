@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LogOut, ChevronLeft, Bell, Menu, X,
-  LayoutDashboard, ClipboardList, PencilLine, Bot, FolderClock,
+  LayoutDashboard, ClipboardList, PencilLine, Bot, FolderClock, UserCog,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getRHSession, clearRHSession } from '../lib/rhSession';
@@ -24,6 +24,7 @@ function navForRole(role) {
     items.push({ to: '/notes-archive', label: 'Arsip Catatan', icon: FolderClock });
   }
   if (role === 'BM') items.push({ to: '/summary/bm', label: 'Summary Tim', icon: Bot });
+  items.push({ to: '/onboarding', label: 'Perbarui Profil', icon: UserCog });
   return items;
 }
 
@@ -120,9 +121,10 @@ export default function Layout({ children, title, back, unreadCount = 0 }) {
             {back && (
               <button
                 onClick={() => navigate(back === true ? dashboardPath() : back)}
-                className="hidden sm:inline-flex items-center gap-1 text-sm text-text-secondary hover:text-ink"
+                className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-ink"
               >
-                <ChevronLeft size={18} /> Kembali
+                <ChevronLeft size={18} />
+                <span className="hidden sm:inline">Kembali</span>
               </button>
             )}
 

@@ -44,7 +44,7 @@ export function PlanDailyStatus({ plan, activity, score }) {
   else if (activity) dailyStatus = 'draft';
 
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div className="card">
         <p className="text-xs text-text-muted mb-2">Rencana Minggu Ini</p>
         {planSubmitted ? (

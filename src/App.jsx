@@ -80,14 +80,13 @@ export default function App() {
         }
       />
 
+      {/* /onboarding: untuk pendaftaran baru DAN update profil (atasan) */}
       <Route
         path="/onboarding"
         element={
           !isSignedIn
             ? <Navigate to="/" replace />
-            : user
-              ? <Navigate to={dashboardPath()} replace />
-              : <Onboarding />
+            : <Onboarding />
         }
       />
 

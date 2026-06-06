@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserPlus, LogOut, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,6 +8,7 @@ import { ROLE_LABELS } from '../lib/utils';
 import logo from '/hana-bank-logo.png';
 
 const ROLES = ['BM', 'FWSS', 'FA'];
+const DEMO_ID_RE = /^[a-z]+_\d+$/;
 
 // Role atasan untuk tiap role (top-down)
 const SUPERVISOR_ROLE = { BM: 'RH', FWSS: 'BM', FA: 'FWSS' };
@@ -22,15 +23,18 @@ const BRANCHES = [
 ];
 
 export default function Onboarding() {
-  const { clerkIdentity, refreshProfile, logout, dashboardPath } = useAuth();
+  const { clerkIdentity, user: existingProfile, refreshProfile, logout, dashboardPath } = useAuth();
   const navigate = useNavigate();
+  const isUpdate = Boolean(existingProfile);
 
-  const [name, setName] = useState(clerkIdentity?.fullName || '');
-  const [role, setRole] = useState('');
-  const [branch, setBranch] = useState('');
-  const [supervisorId, setSupervisorId] = useState('');
+  const [name, setName] = useState(existingProfile?.name || clerkIdentity?.fullName || '');
+  const [role, setRole] = useState(existingProfile?.role || '');
+  const [branch, setBranch] = useState(existingProfile?.branch || '');
+  const [supervisorId, setSupervisorId] = useState(existingProfile?.supervisor_id || '');
   const [supervisors, setSupervisors] = useState([]);
   const [supLoading, setSupLoading] = useState(false);
+  // Saat mode update, restore supervisorId awal jika masih valid setelah load
+  const initialSupId = useRef(existingProfile?.supervisor_id || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -44,7 +48,15 @@ export default function Onboarding() {
     setSupLoading(true);
     (async () => {
       try {
-        setSupervisors(await fetchUsersByRole(supRole));
+        const all = await fetchUsersByRole(supRole);
+        const filtered = all.filter((u) => !DEMO_ID_RE.test(u.id));
+        setSupervisors(filtered);
+        // Mode update: restore supervisorId awal jika masih terdaftar & valid
+        const init = initialSupId.current;
+        if (init && filtered.some((u) => u.id === init)) {
+          setSupervisorId(init);
+          initialSupId.current = '';
+        }
       } catch {
         setSupervisors([]);
       } finally {
@@ -103,9 +115,13 @@ export default function Onboarding() {
           <div className="h-14 w-14 rounded-full bg-hana-teal-50 grid place-items-center mx-auto mb-3">
             <UserPlus size={26} className="text-hana-teal-700" />
           </div>
-          <h1 className="font-display text-2xl font-bold">Lengkapi Profil Anda</h1>
+          <h1 className="font-display text-2xl font-bold">
+            {isUpdate ? 'Perbarui Profil' : 'Lengkapi Profil Anda'}
+          </h1>
           <p className="text-sm text-text-secondary mt-1">
-            Beberapa data dibutuhkan untuk menempatkan Anda di struktur tim ICU Class.
+            {isUpdate
+              ? 'Perbarui data profil atau pilih ulang atasan Anda.'
+              : 'Beberapa data dibutuhkan untuk menempatkan Anda di struktur tim ICU Class.'}
           </p>
         </div>
 
@@ -169,8 +185,13 @@ export default function Onboarding() {
 
           <button type="submit" disabled={saving} className="btn-teal w-full">
             {saving ? <Spinner size={16} className="text-white" /> : <UserPlus size={16} />}
-            Simpan & Masuk
+            {isUpdate ? 'Simpan Perubahan' : 'Simpan & Masuk'}
           </button>
+          {isUpdate && (
+            <button type="button" onClick={() => navigate(dashboardPath(role || existingProfile?.role), { replace: true })} className="btn-ghost w-full">
+              Batal
+            </button>
+          )}
         </form>
 
         <p className="flex items-center gap-1.5 text-[11px] text-text-muted mt-5 justify-center">

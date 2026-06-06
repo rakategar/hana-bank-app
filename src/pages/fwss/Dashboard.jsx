@@ -74,7 +74,16 @@ export default function FWSSDashboard() {
             {teamLoading ? (
               <div className="grid sm:grid-cols-2 gap-4"><div className="skeleton h-24" /><div className="skeleton h-24" /></div>
             ) : team.length === 0 ? (
-              <p className="text-sm text-text-muted">Tidak ada FA di bawah Anda.</p>
+              <div className="card border-score-2/40 bg-score-2/10">
+                <p className="text-sm font-semibold text-score-2 mb-1">Belum ada FA terdeteksi</p>
+                <p className="text-xs text-text-secondary leading-relaxed mb-3">
+                  Pastikan akun FA yang Anda bimbing sudah mendaftar dan memilih Anda sebagai atasan.
+                  Jika Anda baru mendaftar, minta FA Anda memperbarui atasan mereka.
+                </p>
+                <button onClick={() => navigate('/onboarding')} className="btn-ghost !py-1.5 text-xs">
+                  Perbarui Profil / Atasan Saya
+                </button>
+              </div>
             ) : (
               <div className="grid sm:grid-cols-2 gap-4">
                 {team.map((snap) => (

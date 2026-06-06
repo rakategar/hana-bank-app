@@ -80,6 +80,16 @@ export default function BMDashboard() {
             </SectionTitle>
             {teamLoading ? (
               <div className="grid gap-4"><div className="skeleton h-24" /><div className="skeleton h-24" /></div>
+            ) : tree.length === 0 ? (
+              <div className="card border-score-2/40 bg-score-2/10">
+                <p className="text-sm font-semibold text-score-2 mb-1">Belum ada FWSS terdeteksi</p>
+                <p className="text-xs text-text-secondary leading-relaxed mb-3">
+                  Pastikan akun FWSS yang Anda bimbing sudah mendaftar dan memilih Anda sebagai atasan.
+                </p>
+                <button onClick={() => navigate('/onboarding')} className="btn-ghost !py-1.5 text-xs">
+                  Perbarui Profil / Atasan Saya
+                </button>
+              </div>
             ) : (
               <div className="grid lg:grid-cols-2 gap-5">
                 {tree.map(({ fwss, fas }) => (

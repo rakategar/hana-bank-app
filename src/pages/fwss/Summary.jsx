@@ -176,7 +176,20 @@ export default function FWSSSummary() {
             </button>
           </div>
 
-          {!aiResult && (
+          {fas.length === 0 && (
+            <div className="card border-score-2/40 bg-score-2/10 text-center py-6">
+              <p className="text-sm font-semibold text-score-2 mb-1">Belum ada FA terdeteksi</p>
+              <p className="text-xs text-text-secondary leading-relaxed mb-3 max-w-sm mx-auto">
+                Pastikan FA Anda sudah mendaftar dan memilih Anda sebagai atasan (FWSS) saat onboarding.
+                Anda juga dapat memperbarui profil untuk memastikan data Anda benar.
+              </p>
+              <button onClick={() => navigate('/onboarding')} className="btn-ghost !py-1.5 text-xs mx-auto">
+                Perbarui Profil Saya
+              </button>
+            </div>
+          )}
+
+          {fas.length > 0 && !aiResult && (
             <div className="card text-center py-8">
               <Bot size={36} className="text-hana-teal-700 mx-auto mb-3" />
               <p className="text-sm text-text-secondary mb-4">
