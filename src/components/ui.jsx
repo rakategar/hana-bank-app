@@ -18,7 +18,7 @@ export function FullSpinner({ label }) {
 export function ErrorBox({ children }) {
   if (!children) return null;
   return (
-    <div className="rounded-lg border border-score-1/40 bg-score-1/10 px-4 py-3 text-sm text-score-1">
+    <div className="rounded-lg border border-score-1/40 bg-score-1/10 px-4 py-3 text-sm text-score-1 whitespace-pre-wrap">
       {children}
     </div>
   );

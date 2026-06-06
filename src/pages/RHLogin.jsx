@@ -25,7 +25,13 @@ export default function RHLogin() {
       setRHSession(rhUser);
       navigate('/dashboard/rh', { replace: true });
     } catch (err) {
-      setError(err.message || 'Login gagal.');
+      const errorMsg = err.message || 'Login gagal.';
+      // Check if error contains setup instruction
+      if (errorMsg.includes('rh_credentials')) {
+        setError(`❌ Setup Diperlukan:\n${errorMsg}`);
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setLoading(false);
     }

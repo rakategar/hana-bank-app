@@ -5,26 +5,44 @@ import { slotsForRole } from '../constants/timeSlots';
 // ── RH LOGIN (USERNAME/PASSWORD) ─────────────────────────
 
 export async function validateRHLogin(username, password) {
-  const { data, error } = await supabase
-    .from('rh_credentials')
-    .select('*')
-    .eq('username', username.toLowerCase())
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error('Username atau password salah.');
+  try {
+    const { data, error } = await supabase
+      .from('rh_credentials')
+      .select('*')
+      .eq('username', username.toLowerCase())
+      .maybeSingle();
 
-  // Simple comparison (passwords harus di-hash di production)
-  if (data.password !== password) throw new Error('Username atau password salah.');
+    if (error) {
+      if (error.message.includes('does not exist') || error.message.includes('could not find')) {
+        throw new Error(
+          'Tabel rh_credentials belum ada.\n\n' +
+          'Solusi:\n' +
+          '1. Buka file RH_SETUP_INSTRUCTIONS.md di root project\n' +
+          '2. Copy SQL script ke Supabase SQL Editor\n' +
+          '3. Jalankan script\n\n' +
+          'Atau baca docs/RH_CREDENTIALS_SETUP.md untuk instruksi lengkap'
+        );
+      }
+      throw error;
+    }
 
-  // Fetch user profile (RH)
-  const { data: rhUser, error: userError } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', data.user_id)
-    .single();
-  if (userError || !rhUser) throw new Error('RH user tidak ditemukan.');
+    if (!data) throw new Error('Username atau password salah.');
 
-  return rhUser;
+    // Simple comparison (passwords harus di-hash di production)
+    if (data.password !== password) throw new Error('Username atau password salah.');
+
+    // Fetch user profile (RH)
+    const { data: rhUser, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', data.user_id)
+      .single();
+    if (userError || !rhUser) throw new Error('RH user tidak ditemukan.');
+
+    return rhUser;
+  } catch (err) {
+    throw err;
+  }
 }
 
 // Initialize RH credentials (untuk demo)
