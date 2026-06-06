@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { useUser, useClerk } from '@clerk/react';
 import { setUserContext, clearUserContext } from '../lib/supabase';
 import { fetchUserMaybe } from '../lib/db';
+import { getRHSession, clearRHSession } from '../lib/rhSession';
 
 const AuthContext = createContext(null);
 
@@ -30,6 +31,15 @@ function ClerkAuthProvider({ children }) {
 
   const loadProfile = useCallback(async () => {
     if (!isLoaded) return;
+
+    // Check RH session first
+    const rhSession = getRHSession();
+    if (rhSession) {
+      setProfile(rhSession);
+      setReady(true);
+      return;
+    }
+
     if (!isSignedIn || !clerkUser) {
       setProfile(null);
       clearUserContext();
@@ -58,9 +68,18 @@ function ClerkAuthProvider({ children }) {
   }, [loadProfile]);
 
   const logout = useCallback(() => {
-    clearUserContext();
-    setProfile(null);
-    clerk.signOut();
+    const rhSession = getRHSession();
+    if (rhSession) {
+      // RH logout
+      clearRHSession();
+      setProfile(null);
+      window.location.href = '/rh';
+    } else {
+      // Clerk logout
+      clearUserContext();
+      setProfile(null);
+      clerk.signOut();
+    }
   }, [clerk]);
 
   const clerkIdentity = clerkUser
