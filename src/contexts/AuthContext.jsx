@@ -67,6 +67,15 @@ function ClerkAuthProvider({ children }) {
     loadProfile();
   }, [loadProfile]);
 
+  // Check RH session on mount and when storage changes
+  useEffect(() => {
+    const rhSession = getRHSession();
+    if (rhSession) {
+      setProfile(rhSession);
+      setReady(true);
+    }
+  }, []);
+
   const logout = useCallback(() => {
     const rhSession = getRHSession();
     if (rhSession) {

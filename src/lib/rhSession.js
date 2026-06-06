@@ -3,9 +3,7 @@ const MAX_SESSION_HOURS = 8;
 
 export function setRHSession(rhUser) {
   localStorage.setItem(SESSION_KEY, JSON.stringify({
-    id: rhUser.id,
-    name: rhUser.name,
-    branch: rhUser.branch,
+    ...rhUser,
     timestamp: Date.now(),
   }));
 }
