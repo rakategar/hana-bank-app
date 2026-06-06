@@ -27,6 +27,55 @@ export async function validateRHLogin(username, password) {
   return rhUser;
 }
 
+// Initialize RH credentials (untuk demo)
+export async function initializeRHCredentials() {
+  try {
+    // Cari RH user
+    const { data: rhUsers, error: fetchError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('role', 'RH')
+      .limit(1);
+
+    if (fetchError || !rhUsers || rhUsers.length === 0) {
+      throw new Error('RH user tidak ditemukan. Buat user RH terlebih dahulu di dashboard.');
+    }
+
+    const rhUserId = rhUsers[0].id;
+
+    // Cek apakah credentials sudah ada
+    const { data: existing } = await supabase
+      .from('rh_credentials')
+      .select('id')
+      .eq('user_id', rhUserId);
+
+    if (existing && existing.length > 0) {
+      return { message: 'RH credentials sudah ada', count: existing.length };
+    }
+
+    // Insert 2 akun RH demo
+    const credentials = [
+      { username: 'primera', password: 'hanabanksinergia', user_id: rhUserId },
+      { username: 'hana', password: 'headofregion', user_id: rhUserId },
+    ];
+
+    const { data, error } = await supabase
+      .from('rh_credentials')
+      .insert(credentials)
+      .select();
+
+    if (error) throw error;
+
+    return {
+      message: 'RH credentials berhasil dibuat',
+      count: data?.length || 0,
+      accounts: ['primera', 'hana']
+    };
+  } catch (err) {
+    throw new Error(`Gagal initialize RH credentials: ${err.message}`);
+  }
+}
+
 // ── USERS ─────────────────────────────────────────────────
 
 export async function fetchAllUsers() {

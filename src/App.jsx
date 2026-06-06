@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { getRHSession } from './lib/rhSession';
+import { initializeRHCredentials } from './lib/db';
 
 import Login from './pages/Login';
 import RHLogin from './pages/RHLogin';
@@ -53,6 +54,13 @@ export default function App() {
   // agar error chunk di kemudian hari masih bisa dipulihkan sekali lagi.
   useEffect(() => {
     sessionStorage.removeItem('icu_chunk_reloaded');
+  }, []);
+
+  // Initialize RH credentials di startup (silent, untuk MVP)
+  useEffect(() => {
+    initializeRHCredentials().catch(() => {
+      // Silent error - credentials mungkin sudah ada atau user belum setup
+    });
   }, []);
 
   if (!ready) return <Loader />;
