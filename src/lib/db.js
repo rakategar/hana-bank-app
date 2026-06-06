@@ -2,6 +2,31 @@ import { supabase } from './supabase';
 import { todayISO, currentWeekId } from './utils';
 import { slotsForRole } from '../constants/timeSlots';
 
+// ── RH LOGIN (USERNAME/PASSWORD) ─────────────────────────
+
+export async function validateRHLogin(username, password) {
+  const { data, error } = await supabase
+    .from('rh_credentials')
+    .select('*')
+    .eq('username', username.toLowerCase())
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('Username atau password salah.');
+
+  // Simple comparison (passwords harus di-hash di production)
+  if (data.password !== password) throw new Error('Username atau password salah.');
+
+  // Fetch user profile (RH)
+  const { data: rhUser, error: userError } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', data.user_id)
+    .single();
+  if (userError || !rhUser) throw new Error('RH user tidak ditemukan.');
+
+  return rhUser;
+}
+
 // ── USERS ─────────────────────────────────────────────────
 
 export async function fetchAllUsers() {

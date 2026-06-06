@@ -5,6 +5,7 @@ import {
   LayoutDashboard, ClipboardList, PencilLine, Bot, FolderClock,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { getRHSession, clearRHSession } from '../lib/rhSession';
 import { initials, ROLE_LABELS, clsx } from '../lib/utils';
 import logo from '/hana-bank-logo.png';
 
@@ -73,22 +74,29 @@ export default function Layout({ children, title, back, unreadCount = 0 }) {
   const location = useLocation();
   const [drawer, setDrawer] = useState(false);
 
-  const items = navForRole(user.role);
+  const rhSession = getRHSession();
+  const displayUser = rhSession || user;
+  const items = displayUser ? navForRole(displayUser.role) : [];
 
   function go(to) {
     setDrawer(false);
     navigate(to);
   }
   function handleLogout() {
-    logout();
-    navigate('/', { replace: true });
+    if (rhSession) {
+      clearRHSession();
+      navigate('/rh', { replace: true });
+    } else {
+      logout();
+      navigate('/', { replace: true });
+    }
   }
 
   return (
     <div className="min-h-screen bg-charcoal lg:flex">
       {/* Sidebar — desktop */}
       <aside className="hidden lg:block w-64 shrink-0 fixed inset-y-0 left-0 z-30">
-        <Sidebar user={user} items={items} current={location.pathname} onNavigate={go} onLogout={handleLogout} />
+        <Sidebar user={displayUser} items={items} current={location.pathname} onNavigate={go} onLogout={handleLogout} />
       </aside>
 
       {/* Drawer — mobile */}
@@ -96,7 +104,7 @@ export default function Layout({ children, title, back, unreadCount = 0 }) {
         <div className="lg:hidden fixed inset-0 z-50">
           <div className="absolute inset-0 bg-ink/50" onClick={() => setDrawer(false)} />
           <div className="absolute inset-y-0 left-0 w-64 animate-slide-down">
-            <Sidebar user={user} items={items} current={location.pathname} onNavigate={go} onLogout={handleLogout} />
+            <Sidebar user={displayUser} items={items} current={location.pathname} onNavigate={go} onLogout={handleLogout} />
           </div>
         </div>
       )}

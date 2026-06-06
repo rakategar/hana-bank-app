@@ -7,9 +7,9 @@ import { ErrorBox, Spinner } from '../components/ui';
 import { ROLE_LABELS } from '../lib/utils';
 import logo from '/hana-bank-logo.png';
 
-const ROLES = ['RH', 'BM', 'FWSS', 'FA'];
+const ROLES = ['BM', 'FWSS', 'FA'];
 
-// Role atasan untuk tiap role (top-down). RH tidak punya atasan.
+// Role atasan untuk tiap role (top-down)
 const SUPERVISOR_ROLE = { BM: 'RH', FWSS: 'BM', FA: 'FWSS' };
 
 const BRANCHES = [
@@ -165,10 +165,6 @@ export default function Onboarding() {
                 </p>
               )}
             </div>
-          )}
-
-          {role === 'RH' && (
-            <p className="text-xs text-text-muted">Sebagai Regional Head, Anda berada di puncak struktur (tanpa atasan).</p>
           )}
 
           <button type="submit" disabled={saving} className="btn-teal w-full">

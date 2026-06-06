@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
+import { getRHSession } from './lib/rhSession';
 
 import Login from './pages/Login';
+import RHLogin from './pages/RHLogin';
 import Onboarding from './pages/Onboarding';
 import FADashboard from './pages/fa/Dashboard';
 import FWSSDashboard from './pages/fwss/Dashboard';
@@ -35,6 +37,15 @@ function ProtectedRoute({ role, children }) {
   return children;
 }
 
+function RHProtectedRoute({ children }) {
+  const location = useLocation();
+  const session = getRHSession();
+
+  if (!session) return <Navigate to="/rh" replace state={{ from: location }} />;
+
+  return children;
+}
+
 export default function App() {
   const { user, ready, isSignedIn, needsOnboarding, dashboardPath } = useAuth();
 
@@ -48,6 +59,8 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/rh" element={<RHLogin />} />
+
       <Route
         path="/"
         element={
@@ -73,7 +86,7 @@ export default function App() {
       <Route path="/dashboard/fa" element={<ProtectedRoute role="FA"><FADashboard /></ProtectedRoute>} />
       <Route path="/dashboard/fwss" element={<ProtectedRoute role="FWSS"><FWSSDashboard /></ProtectedRoute>} />
       <Route path="/dashboard/bm" element={<ProtectedRoute role="BM"><BMDashboard /></ProtectedRoute>} />
-      <Route path="/dashboard/rh" element={<ProtectedRoute role="RH"><RHDashboard /></ProtectedRoute>} />
+      <Route path="/dashboard/rh" element={<RHProtectedRoute><RHDashboard /></RHProtectedRoute>} />
 
       <Route path="/weekly-plan" element={<ProtectedRoute><WeeklyPlan /></ProtectedRoute>} />
       <Route path="/daily-input" element={<ProtectedRoute><DailyInput /></ProtectedRoute>} />
@@ -82,7 +95,7 @@ export default function App() {
       <Route path="/summary/fwss" element={<ProtectedRoute role="FWSS"><FWSSSummary /></ProtectedRoute>} />
       <Route path="/notes-archive" element={<ProtectedRoute role="FWSS"><NotesArchive /></ProtectedRoute>} />
       <Route path="/summary/bm" element={<ProtectedRoute role="BM"><BMSummary /></ProtectedRoute>} />
-      <Route path="/summary/rh" element={<ProtectedRoute role="RH"><RHSummary /></ProtectedRoute>} />
+      <Route path="/summary/rh" element={<RHProtectedRoute><RHSummary /></RHProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
