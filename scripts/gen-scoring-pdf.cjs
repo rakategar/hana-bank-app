@@ -72,6 +72,45 @@ function bullet(y, str, size = 10.5) {
   return y + lines.length * 5 + 1.5;
 }
 
+// diagram alur vertikal (kotak + panah)
+function drawFlow(steps) {
+  const bx = 25, bw = 160, bh = 16;
+  let fy = 46;
+  steps.forEach((s, i) => {
+    const hot = s.hot;
+    fill(hot ? TEAL : [248, 250, 252]); draw(hot ? TEAL : BORDER); doc.setLineWidth(0.3);
+    doc.roundedRect(bx, fy, bw, bh, 2.5, 2.5, 'FD');
+    fill(hot ? [255, 255, 255] : TEAL); doc.circle(bx + 9, fy + bh / 2, 4.5, 'F');
+    text(hot ? TEAL : [255, 255, 255]); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    doc.text(String(i + 1), bx + 9, fy + bh / 2 + 1.6, { align: 'center' });
+    text(hot ? [255, 255, 255] : INK); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    doc.text(s.t, bx + 18, fy + 6.5);
+    text(hot ? TEAL_50 : SEC); doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+    const dl = doc.splitTextToSize(s.d, bw - 24);
+    doc.text(dl, bx + 18, fy + 11);
+    if (i < steps.length - 1) {
+      const ax = bx + bw / 2, ay = fy + bh;
+      draw(TEAL); doc.setLineWidth(0.6); doc.line(ax, ay + 0.5, ax, ay + 4.5);
+      fill(TEAL); doc.triangle(ax - 2.2, ay + 4, ax + 2.2, ay + 4, ax, ay + 6.8, 'F');
+    }
+    fy += bh + 6.8;
+  });
+  return fy;
+}
+
+// kotak kode monospace dengan caption berwarna
+function codeBox(y, caption, capColor, lines) {
+  text(capColor); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
+  doc.text(caption, M, y); y += 3;
+  doc.setFont('courier', 'normal'); doc.setFontSize(7.6);
+  const lh = 3.5, bh = lines.length * lh + 6;
+  fill([247, 249, 252]); draw(BORDER); doc.setLineWidth(0.3); doc.roundedRect(M, y, CW, bh, 2, 2, 'FD');
+  fill(capColor); doc.roundedRect(M, y, 2.5, bh, 1, 1, 'F');
+  text(INK);
+  lines.forEach((ln, i) => doc.text(ln, M + 6, y + 5 + i * lh));
+  return y + bh + 6;
+}
+
 // ══════════════ HALAMAN 1 ══════════════
 header('Bagaimana AI Menilai Kinerja Harian', 'Panduan Ringkas · ICU Class Bank Hana');
 let y = 44;
@@ -153,6 +192,63 @@ y = section(y, 6, 'Tips agar Nilai Maksimal');
 y = bullet(y, 'Isi kolom hasil nyata selengkap mungkin, bukan sekadar terisi.');
 y = bullet(y, 'Selesaikan aktivitas dan tandai statusnya dengan benar.');
 y = bullet(y, 'Khusus FA: jaga agar realisasi sesuai Rencana Mingguan.');
+
+// ══════════════ HALAMAN 3: Alur Data ke AI ══════════════
+doc.addPage();
+header('Alur Penilaian oleh AI', 'Panduan Ringkas · ICU Class Bank Hana');
+drawFlow([
+  { t: 'User mengisi aktivitas', d: 'Hasil nyata, status (Selesai/Sebagian/Tidak), dan catatan tiap jam kegiatan, lalu menekan Submit.' },
+  { t: 'Sistem mengumpulkan data', d: 'Aktivitas hari itu digabung; untuk FA ditambah Rencana Mingguan sebagai pembanding.' },
+  { t: 'Menyusun Prompt', d: 'Data digabung dengan rubrik peran menjadi satu perintah lengkap untuk AI.', hot: true },
+  { t: 'Dikirim ke AI (Claude Haiku)', d: 'Model AI menilai secara cepat & konsisten untuk volume harian.', hot: true },
+  { t: 'AI membalas dalam bentuk JSON', d: 'Skor 1-4 + level, alasan, dan saran tiap aktivitas, plus rata-rata & ringkasan harian.' },
+  { t: 'Disimpan ke database', d: 'Hasil dicatat pada tabel ai_scores agar bisa dipakai ulang.' },
+  { t: 'Ditampilkan', d: 'Muncul di dashboard, PDF detail, dan Summary Regional.' },
+]);
+
+// ══════════════ HALAMAN 4: Contoh Prompt & Jawaban ══════════════
+doc.addPage();
+header('Contoh Perintah (Prompt) ke AI', 'Panduan Ringkas · ICU Class Bank Hana');
+y = 42;
+y = para(y, 'Berikut contoh nyata (disederhanakan) untuk seorang FA dengan satu kegiatan. Rubrik lengkap 12 slot diringkas agar muat di satu halaman.', SEC, 9.5, 4.6);
+y += 3;
+y = codeBox(y, 'PERINTAH (PROMPT) — disusun sistem lalu dikirim ke AI', TEAL, [
+  'Kamu adalah evaluator performa ICU Class Bank Hana.',
+  'Role user: Financial Advisor (FA).',
+  '',
+  'Rubrik scoring per aktivitas:',
+  '07:30 Morning Briefing & Target Commitment:',
+  '  - Score 1: Tidak memiliki target & action plan',
+  '  - Score 2: Target ada, action plan belum lengkap',
+  '  - Score 3: Target, pipeline & action plan harian jelas',
+  '  - Score 4: Target sangat jelas, urgency execution tinggi',
+  '  ...(11 slot lainnya diringkas)...',
+  '',
+  'Evaluasi aktivitas berikut secara objektif. Tiap aktivitas',
+  'punya "planned" & "actual" - bandingkan keduanya; makin',
+  'kecil gap, makin tinggi skor. Output HANYA JSON valid.',
+  'level: 1=CRITICAL 2=RECOVERY 3=ON TRACK 4=HIGH IMPACT',
+  '',
+  'Aktivitas yang dievaluasi:',
+  '[ { "time": "07:30",',
+  '    "label": "Morning Briefing & Target Commitment",',
+  '    "planned": "Target 3 nasabah prioritas",',
+  '    "actual": "Briefing hadir, target 3 nasabah + plan siap",',
+  '    "status": "done", "notes": "" } ]',
+]);
+y = codeBox(y, 'JAWABAN AI — data JSON yang disimpan sistem', [34, 197, 94], [
+  '{ "scores": [',
+  '    { "time": "07:30", "score": 4, "level": "HIGH IMPACT",',
+  '      "reasoning": "Target & action plan sangat jelas.",',
+  '      "recommendation": "Pertahankan urgensi eksekusi." }',
+  '  ],',
+  '  "daily_average": 3.4,',
+  '  "daily_level": "ON TRACK",',
+  '  "summary": "Kinerja harian solid, eksekusi konsisten.",',
+  '  "overall_recommendation": "Fokus follow-up closing besok." }',
+]);
+text(MUTED); doc.setFont('helvetica', 'italic'); doc.setFontSize(8);
+doc.text('Catatan: skor tiap aktivitas dinilai AI; rata-rata harian & level dihitung otomatis (lihat halaman Rumus).', M, y + 1);
 
 // ══════════════ HALAMAN RUBRIK per peran ══════════════
 const LABEL_W = 40;
