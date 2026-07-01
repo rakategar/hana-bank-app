@@ -1,56 +1,54 @@
 /* Generator PDF "Panduan Ringkas: Bagaimana AI Menilai Kinerja Harian"
-   Palet Bank Hana, 2 halaman, bahasa awam. Dijalankan: node scripts/gen-scoring-pdf.cjs */
+   Palet Bank Hana, bahasa awam, + tabel rubrik penilaian per peran.
+   Rubrik dibaca langsung dari src/constants/scoringRubric.js agar selalu sinkron.
+   Jalankan: node scripts/gen-scoring-pdf.cjs */
 const fs = require('fs');
 const path = require('path');
 const { jsPDF } = require('jspdf');
 
+// ── Baca rubrik dari sumber (ESM) tanpa duplikasi data ──
+function loadRubrics() {
+  let src = fs.readFileSync(path.join(__dirname, '..', 'src', 'constants', 'scoringRubric.js'), 'utf8');
+  src = src.replace(/export /g, '');
+  return new Function(src + '\nreturn { FA_RUBRIC, FWSS_RUBRIC, BM_RUBRIC };')();
+}
+const { FA_RUBRIC, FWSS_RUBRIC, BM_RUBRIC } = loadRubrics();
+
 // ── Palet Bank Hana ──
-const TEAL = [2, 107, 88];       // #026B58
-const TEAL_D = [15, 42, 36];     // #0F2A24 sidebar
-const TEAL_50 = [234, 249, 246]; // #EAF9F6
-const PINK = [230, 37, 96];      // #E62560
-const INK = [31, 41, 51];        // #1F2933
-const SEC = [71, 85, 105];       // #475569
-const MUTED = [148, 163, 184];   // #94A3B8
-const BORDER = [226, 232, 240];  // #E2E8F0
+const TEAL = [2, 107, 88];
+const TEAL_D = [15, 42, 36];
+const TEAL_50 = [234, 249, 246];
+const PINK = [230, 37, 96];
+const INK = [31, 41, 51];
+const SEC = [71, 85, 105];
+const MUTED = [148, 163, 184];
+const BORDER = [226, 232, 240];
 const LEVELS = [
-  { n: 1, name: 'CRITICAL', arti: 'Perlu perbaikan besar', c: [239, 68, 68] },
-  { n: 2, name: 'RECOVERY', arti: 'Masih di bawah target', c: [249, 115, 22] },
-  { n: 3, name: 'ON TRACK', arti: 'Sesuai harapan', c: [59, 130, 246] },
-  { n: 4, name: 'HIGH IMPACT', arti: 'Sangat baik', c: [34, 197, 94] },
+  { n: 1, name: 'CRITICAL', arti: 'Perlu perbaikan besar', c: [239, 68, 68], tint: [254, 235, 235] },
+  { n: 2, name: 'RECOVERY', arti: 'Masih di bawah target', c: [249, 115, 22], tint: [255, 242, 230] },
+  { n: 3, name: 'ON TRACK', arti: 'Sesuai harapan', c: [59, 130, 246], tint: [235, 242, 254] },
+  { n: 4, name: 'HIGH IMPACT', arti: 'Sangat baik', c: [34, 197, 94], tint: [233, 250, 239] },
 ];
 
 const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
 const W = 210, H = 297, M = 16;
 const CW = W - M * 2;
-
 const logo = fs.readFileSync(path.join(__dirname, '..', 'public', 'hana-bank-logo.png')).toString('base64');
 
-function fill(c) { doc.setFillColor(c[0], c[1], c[2]); }
-function text(c) { doc.setTextColor(c[0], c[1], c[2]); }
-function draw(c) { doc.setDrawColor(c[0], c[1], c[2]); }
+const fill = (c) => doc.setFillColor(c[0], c[1], c[2]);
+const text = (c) => doc.setTextColor(c[0], c[1], c[2]);
+const draw = (c) => doc.setDrawColor(c[0], c[1], c[2]);
 
-// ── Header band ──
 function header(title, sub) {
   fill(TEAL); doc.rect(0, 0, W, 32, 'F');
   fill([255, 255, 255]); doc.roundedRect(M, 7, 18, 18, 3, 3, 'F');
   doc.addImage(logo, 'PNG', M + 2, 9, 14, 14);
-  text([255, 255, 255]);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
+  text([255, 255, 255]); doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
   doc.text(title, M + 24, 15);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
   text(TEAL_50); doc.text(sub, M + 24, 22);
 }
 
-function footer(pageNo) {
-  draw(BORDER); doc.setLineWidth(0.3); doc.line(M, H - 14, W - M, H - 14);
-  text(MUTED); doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
-  doc.text('Disusun otomatis oleh sistem ICU Class · Bank Hana', M, H - 9);
-  const today = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-  doc.text(today + '   ·   Halaman ' + pageNo + '/2', W - M, H - 9, { align: 'right' });
-}
-
-// heading seksi bernomor
 function section(y, no, title) {
   fill(TEAL); doc.roundedRect(M, y - 5, 6.5, 6.5, 1.5, 1.5, 'F');
   text([255, 255, 255]); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
@@ -79,7 +77,7 @@ header('Bagaimana AI Menilai Kinerja Harian', 'Panduan Ringkas · ICU Class Bank
 let y = 44;
 
 y = section(y, 1, 'Apa yang Dinilai?');
-y = para(y, 'Setiap hari kerja, sistem menilai kualitas pelaksanaan aktivitas tiap peran (FA, FWSS, dan BM). Penilaian dilakukan otomatis oleh AI berdasarkan standar penilaian (rubrik) baku Bank Hana, agar hasilnya objektif dan seragam untuk semua orang.');
+y = para(y, 'Setiap hari kerja, sistem menilai kualitas pelaksanaan aktivitas tiap peran (FA, FWSS, dan BM). Penilaian dilakukan otomatis oleh AI berdasarkan standar penilaian (rubrik) baku Bank Hana, agar hasilnya objektif dan seragam untuk semua orang. Rincian rubrik tiap peran ada di halaman berikutnya.');
 y += 4;
 
 y = section(y, 2, 'Data yang Digunakan');
@@ -93,39 +91,27 @@ y = bullet(y, 'Khusus FA: hasil nyata dibandingkan dengan Rencana Mingguan. Maki
 y += 3;
 
 y = section(y, 3, 'Skala Nilai');
-// tabel level
-const rowH = 9, tX = M, tW = CW;
-const col = [tX + 4, tX + 22, tX + 62]; // nilai, level, arti
+const rowH = 9, tX = M, tW = CW, col = [tX + 4, tX + 22, tX + 62];
 fill(TEAL_D); doc.roundedRect(tX, y - 1, tW, 7, 1, 1, 'F');
 text([255, 255, 255]); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
-doc.text('NILAI', col[0], y + 3.5);
-doc.text('LEVEL', col[1], y + 3.5);
-doc.text('ARTINYA', col[2], y + 3.5);
+doc.text('NILAI', col[0], y + 3.5); doc.text('LEVEL', col[1], y + 3.5); doc.text('ARTINYA', col[2], y + 3.5);
 let ty = y + 6;
 LEVELS.forEach((lv, i) => {
   if (i % 2 === 1) { fill(TEAL_50); doc.rect(tX, ty, tW, rowH, 'F'); }
-  // chip nilai berwarna
   fill(lv.c); doc.roundedRect(col[0] - 1, ty + 1.8, 8, 5.4, 1, 1, 'F');
   text([255, 255, 255]); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
   doc.text(String(lv.n), col[0] + 3, ty + 5.6, { align: 'center' });
-  text(INK); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
-  doc.text(lv.name, col[1], ty + 5.8);
-  text(SEC); doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-  doc.text(lv.arti, col[2], ty + 5.8);
+  text(INK); doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.text(lv.name, col[1], ty + 5.8);
+  text(SEC); doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.text(lv.arti, col[2], ty + 5.8);
   ty += rowH;
 });
 draw(BORDER); doc.setLineWidth(0.3); doc.roundedRect(tX, y - 1, tW, rowH * 4 + 7, 1, 1, 'S');
 y = ty + 6;
 
-// catatan penting
 fill([253, 236, 242]); doc.roundedRect(M, y, CW, 12, 2, 2, 'F');
-text(PINK); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
-doc.text('Penting:', M + 4, y + 5);
+text(PINK); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.text('Penting:', M + 4, y + 5);
 text(SEC); doc.setFont('helvetica', 'normal');
 doc.text('Jika hasil nyata dikosongkan atau status "Tidak Selesai", nilainya otomatis 1 (CRITICAL).', M + 20, y + 5, { maxWidth: CW - 24 });
-doc.text('', M + 4, y + 9);
-
-footer(1);
 
 // ══════════════ HALAMAN 2 ══════════════
 doc.addPage();
@@ -142,13 +128,10 @@ const boxes = [
 boxes.forEach(([t, d]) => {
   const lines = doc.splitTextToSize(d, CW - 12);
   const bh = 8 + lines.length * 4.6;
-  fill([248, 250, 252]); draw(BORDER); doc.setLineWidth(0.3);
-  doc.roundedRect(M, y, CW, bh, 2, 2, 'FD');
+  fill([248, 250, 252]); draw(BORDER); doc.setLineWidth(0.3); doc.roundedRect(M, y, CW, bh, 2, 2, 'FD');
   fill(TEAL); doc.roundedRect(M, y, 2.5, bh, 1, 1, 'F');
-  text(TEAL); doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5);
-  doc.text(t, M + 6, y + 5.5);
-  text(SEC); doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-  doc.text(lines, M + 6, y + 10.5);
+  text(TEAL); doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.text(t, M + 6, y + 5.5);
+  text(SEC); doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.text(lines, M + 6, y + 10.5);
   y += bh + 3.5;
 });
 y += 2;
@@ -171,10 +154,85 @@ y = bullet(y, 'Isi kolom hasil nyata selengkap mungkin, bukan sekadar terisi.');
 y = bullet(y, 'Selesaikan aktivitas dan tandai statusnya dengan benar.');
 y = bullet(y, 'Khusus FA: jaga agar realisasi sesuai Rencana Mingguan.');
 
-footer(2);
+// ══════════════ HALAMAN RUBRIK per peran ══════════════
+const LABEL_W = 40;
+const CELL_W = (CW - LABEL_W) / 4;
+
+function rubricHeaderRow(yTop) {
+  fill(TEAL_D); doc.rect(M, yTop, LABEL_W, 8, 'F');
+  text([255, 255, 255]); doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+  doc.text('JAM & KEGIATAN', M + 2, yTop + 5);
+  LEVELS.forEach((lv, i) => {
+    const cx = M + LABEL_W + i * CELL_W;
+    fill(lv.c); doc.rect(cx, yTop, CELL_W, 8, 'F');
+    text([255, 255, 255]); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
+    doc.text(lv.n + '  ' + lv.name, cx + CELL_W / 2, yTop + 5, { align: 'center' });
+  });
+  return yTop + 8;
+}
+
+function drawRubric(rubric, roleCode, roleTitle, roleDesc) {
+  doc.addPage();
+  header('Standar Penilaian: ' + roleCode, roleTitle + ' · ICU Class Bank Hana');
+  let yy = 42;
+  text(SEC); doc.setFont('helvetica', 'italic'); doc.setFontSize(9);
+  yy = (function () { const l = doc.splitTextToSize(roleDesc, CW); doc.text(l, M, yy); return yy + l.length * 4.4; })();
+  yy += 2;
+  yy = rubricHeaderRow(yy);
+
+  const entries = Object.entries(rubric);
+  entries.forEach(([time, { label, criteria }], idx) => {
+    // hitung tinggi baris
+    doc.setFontSize(7.3);
+    const cellLines = LEVELS.map((lv) => doc.splitTextToSize(criteria[lv.n], CELL_W - 3));
+    const kegLines = doc.splitTextToSize(label, LABEL_W - 4);
+    const maxLines = Math.max(cellLines[0].length, cellLines[1].length, cellLines[2].length, cellLines[3].length, kegLines.length + 1);
+    const rH = Math.max(11, 3.6 + maxLines * 3.15);
+
+    // page break bila perlu
+    if (yy + rH > H - 16) {
+      doc.addPage();
+      header('Standar Penilaian: ' + roleCode + ' (lanjutan)', roleTitle + ' · ICU Class Bank Hana');
+      yy = 42;
+      yy = rubricHeaderRow(yy);
+    }
+
+    // zebra
+    if (idx % 2 === 1) { fill([248, 250, 252]); doc.rect(M, yy, CW, rH, 'F'); }
+    // kolom jam & kegiatan
+    text(TEAL); doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.text(time, M + 2, yy + 5);
+    text(INK); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.3); doc.text(kegLines, M + 2, yy + 9);
+    // kolom kriteria
+    LEVELS.forEach((lv, i) => {
+      const cx = M + LABEL_W + i * CELL_W;
+      text(SEC); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.3);
+      doc.text(cellLines[i], cx + 1.5, yy + 5);
+    });
+    // garis pemisah
+    draw(BORDER); doc.setLineWidth(0.2); doc.line(M, yy + rH, M + CW, yy + rH);
+    yy += rH;
+  });
+  // border luar & garis vertikal kolom
+  draw(BORDER); doc.setLineWidth(0.3);
+  // (garis atas tabel sudah oleh header row)
+}
+
+drawRubric(FA_RUBRIC, 'FA', 'Financial Advisor', 'Peran penjualan lini depan. Aktivitas dinilai dengan membandingkan Rencana Mingguan (planned) dengan realisasi (actual): makin kecil selisihnya, makin tinggi nilainya.');
+drawRubric(FWSS_RUBRIC, 'FWSS', 'Field Work Sales Supervisor', 'Supervisor lapangan. Dinilai dari kualitas pengarahan, monitoring, dan pemulihan (recovery) kinerja tim FA sepanjang hari.');
+drawRubric(BM_RUBRIC, 'BM', 'Branch Manager', 'Kepala cabang. Dinilai dari arah bisnis, koordinasi cabang, dan dukungan terhadap tim untuk mendorong hasil.');
+
+// ── Footer otomatis di semua halaman ──
+const total = doc.getNumberOfPages();
+const today = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+for (let p = 1; p <= total; p++) {
+  doc.setPage(p);
+  draw(BORDER); doc.setLineWidth(0.3); doc.line(M, H - 14, W - M, H - 14);
+  text(MUTED); doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+  doc.text('Disusun otomatis oleh sistem ICU Class · Bank Hana', M, H - 9);
+  doc.text(today + '   ·   Halaman ' + p + '/' + total, W - M, H - 9, { align: 'right' });
+}
 
 const out = path.join(__dirname, '..', 'docs', 'Penjelasan-AI-Scoring.pdf');
 fs.mkdirSync(path.dirname(out), { recursive: true });
-doc.save(out); // node: writes file
 fs.writeFileSync(out, Buffer.from(doc.output('arraybuffer')));
-console.log('PDF dibuat:', out, Math.round(fs.statSync(out).size / 1024) + 'KB');
+console.log('PDF dibuat:', out, Math.round(fs.statSync(out).size / 1024) + 'KB', '·', total, 'halaman');
