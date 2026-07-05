@@ -23,6 +23,7 @@ export default function ActivitySlot({
   formSchema = [],
   onSave,
   saving = false,
+  hidePlan = false,
 }) {
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState('');
@@ -100,35 +101,52 @@ export default function ActivitySlot({
         </div>
       ) : null}
 
-      {/* Panel RENCANA (read-only) — dari Weekly Plan */}
-      <div className="mb-3 rounded-lg bg-elevated border border-hana-border px-3 py-2.5">
-        <p className="flex items-center gap-1.5 text-[11px] font-semibold text-text-secondary mb-1.5">
-          <ClipboardList size={13} /> Rencana
-        </p>
-        {hasSchema ? (
-          <SlotFormRenderer schema={formSchema} value={slot.planned_data || {}} users={users} readOnly />
-        ) : slot.extra && isStructuredFilled(slot.planned_data) ? (
-          <dl className="space-y-1">
-            {Object.entries(slot.planned_data).map(([k, v]) =>
-              v ? (
-                <div key={k} className="text-xs">
-                  <dt className="font-medium text-text-secondary capitalize">{k.replace(/_/g, ' ')}</dt>
-                  <dd className="text-ink">{String(v)}</dd>
-                </div>
-              ) : null
-            )}
-          </dl>
-        ) : slot.extra ? (
-          <p className="text-xs text-text-muted italic">Rencana tambahan — isi hasilnya di bawah.</p>
-        ) : slot.planned ? (
-          <p className="text-xs text-ink">{slot.planned}</p>
-        ) : (
-          <p className="text-xs text-text-muted italic">Belum ada rencana untuk slot ini.</p>
-        )}
-      </div>
+      {/* Panel RENCANA (read-only) — hanya untuk FA (hidePlan=false) */}
+      {!hidePlan && (
+        <div className="mb-3 rounded-lg bg-elevated border border-hana-border px-3 py-2.5">
+          <p className="flex items-center gap-1.5 text-[11px] font-semibold text-text-secondary mb-1.5">
+            <ClipboardList size={13} /> Rencana
+          </p>
+          {hasSchema ? (
+            <SlotFormRenderer schema={formSchema} value={slot.planned_data || {}} users={users} readOnly />
+          ) : slot.extra && isStructuredFilled(slot.planned_data) ? (
+            <dl className="space-y-1">
+              {Object.entries(slot.planned_data).map(([k, v]) =>
+                v ? (
+                  <div key={k} className="text-xs">
+                    <dt className="font-medium text-text-secondary capitalize">{k.replace(/_/g, ' ')}</dt>
+                    <dd className="text-ink">{String(v)}</dd>
+                  </div>
+                ) : null
+              )}
+            </dl>
+          ) : slot.extra ? (
+            <p className="text-xs text-text-muted italic">Rencana tambahan — isi hasilnya di bawah.</p>
+          ) : slot.planned ? (
+            <p className="text-xs text-ink">{slot.planned}</p>
+          ) : (
+            <p className="text-xs text-text-muted italic">Belum ada rencana untuk slot ini.</p>
+          )}
+        </div>
+      )}
 
-      {/* HASIL AKTUAL — hanya untuk slot dengan item rencana (list). Slot non-list cukup status. */}
-      {hasActualFields ? (
+      {/* HASIL AKTUAL */}
+      {hidePlan && hasSchema ? (
+        /* FWSS/BM: free actual mode — editable list + tombol "+ tambah" */
+        <>
+          <label className="label">Aktivitas {canEditActual && '*'}</label>
+          <div className={clsx(!canEditActual && 'opacity-70 pointer-events-none')}>
+            <SlotFormRenderer
+              mode="freeActual"
+              schema={formSchema}
+              value={slot.actual_data || {}}
+              onChange={(actual_data) => update({ actual_data })}
+              users={users}
+              disabled={!canEditActual}
+            />
+          </div>
+        </>
+      ) : hasActualFields ? (
         <>
           <label className="label">Hasil per Item {canEditActual && '*'}</label>
           <div className={clsx(!canEditActual && 'opacity-70 pointer-events-none')}>

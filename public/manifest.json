@@ -1,0 +1,24 @@
+{
+  "name": "ICU Class — Bank Hana",
+  "short_name": "ICU Class",
+  "description": "Intensive Control & Upgrading — Field Execution System Bank Hana",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1F2933",
+  "theme_color": "#04B292",
+  "icons": [
+    {
+      "src": "/hana-bank-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/hana-bank-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

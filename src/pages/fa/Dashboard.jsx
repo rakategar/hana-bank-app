@@ -38,7 +38,7 @@ export default function FADashboard() {
 
           <div>
             <SectionTitle>Aksi Cepat</SectionTitle>
-            <PrimaryActions />
+            <PrimaryActions role={user.role} />
           </div>
         </div>
       )}

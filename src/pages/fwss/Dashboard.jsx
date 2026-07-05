@@ -10,7 +10,7 @@ import WarningBanner from '../../components/WarningBanner';
 import MonitorCard from '../../components/MonitorCard';
 import ActivityDetailModal from '../../components/ActivityDetailModal';
 import { FullSpinner, ErrorBox } from '../../components/ui';
-import { TodayStatusCard, PlanDailyStatus, PrimaryActions, NotesCard, SectionTitle } from '../../components/dashboard';
+import { TodayStatusCard, PrimaryActions, NotesCard, SectionTitle } from '../../components/dashboard';
 import { fetchSubordinates, fetchUserDaySnapshot } from '../../lib/db';
 import { slotsForRole } from '../../constants/timeSlots';
 
@@ -58,8 +58,7 @@ export default function FWSSDashboard() {
           <TodayStatusCard activity={activity} score={score} totalSlots={totalSlots} />
           <ActivityWatch userId={user.id} role={user.role} />
 
-          <PlanDailyStatus plan={plan} activity={activity} score={score} />
-          <PrimaryActions />
+          <PrimaryActions role={user.role} />
 
           <NotesCard notes={notes} fromLabel="BM" />
 

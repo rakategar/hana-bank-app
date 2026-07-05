@@ -65,13 +65,16 @@ export function PlanDailyStatus({ plan, activity, score }) {
   );
 }
 
-export function PrimaryActions() {
+export function PrimaryActions({ role }) {
   const navigate = useNavigate();
+  const showWeeklyPlan = role === 'FA';
   return (
-    <div className="grid sm:grid-cols-2 gap-4">
-      <button onClick={() => navigate('/weekly-plan')} className="btn-teal w-full">
-        <ClipboardList size={18} /> Buat Rencana Minggu Ini
-      </button>
+    <div className={showWeeklyPlan ? 'grid sm:grid-cols-2 gap-4' : ''}>
+      {showWeeklyPlan && (
+        <button onClick={() => navigate('/weekly-plan')} className="btn-teal w-full">
+          <ClipboardList size={18} /> Buat Rencana Minggu Ini
+        </button>
+      )}
       <button onClick={() => navigate('/daily-input')} className="btn-pink w-full">
         <PencilLine size={18} /> Input Aktivitas Hari Ini
       </button>

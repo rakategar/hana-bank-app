@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bot, AlertTriangle, ArrowUp, ArrowDown, Minus, ScrollText } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { getRHSession } from '../../lib/rhSession';
 import { useNowKey } from '../../hooks/useNowKey';
 import Layout from '../../components/Layout';
 import TeamHeatmap from '../../components/TeamHeatmap';
@@ -12,7 +13,7 @@ import UserManagementPanel from './UserManagementPanel';
 import { FullSpinner, ErrorBox, StatusPill } from '../../components/ui';
 import { SectionTitle } from '../../components/dashboard';
 import { fetchAllUsers, fetchUserDaySnapshot, fetchScoreRange, fetchWarningsFrom } from '../../lib/db';
-import { lastNDates, formatDateID, levelInfo, clsx } from '../../lib/utils';
+import { workWeekDates, prevWeekDate, formatDateID, levelInfo, clsx, nowDate, todayISO } from '../../lib/utils';
 
 const ROLE_ORDER = { BM: 0, FWSS: 1, FA: 2 };
 
@@ -23,7 +24,9 @@ function Trend({ value }) {
 }
 
 export default function RHDashboard() {
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
+  // Fallback ke session langsung agar tidak null saat navigasi pertama kali
+  const user = authUser || getRHSession();
   const navigate = useNavigate();
   const nowKey = useNowKey();
   const [loading, setLoading] = useState(true);
@@ -31,6 +34,7 @@ export default function RHDashboard() {
   const [rows, setRows] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [heatRows, setHeatRows] = useState([]);
+  const [heatWeeks, setHeatWeeks] = useState([]);
   const [warnings, setWarnings] = useState([]);
   const [showWarning, setShowWarning] = useState(false);
   const [detailUser, setDetailUser] = useState(null);
@@ -43,19 +47,24 @@ export default function RHDashboard() {
       const all = await fetchAllUsers();
       setAllUsers(all);
       const team = all.filter((u) => u.role !== 'RH');
-      const dates = lastNDates(10);
-      const yesterday = dates[dates.length - 2];
-      const today = dates[dates.length - 1];
+      const todayDate = nowDate();
+      const week1 = workWeekDates(prevWeekDate(todayDate)); // minggu lalu
+      const week2 = workWeekDates(todayDate);               // minggu ini
+      const allDates = [...week1, ...week2];
+      // Trend: hari ini vs hari kerja sebelumnya
+      const todayStr = todayISO();
+      const todayIdx = week2.indexOf(todayStr);
+      const yesterdayStr = todayIdx > 0 ? week2[todayIdx - 1] : week1[week1.length - 1];
 
       const enriched = await Promise.all(
         team.map(async (u) => {
           const [snap, range] = await Promise.all([
             fetchUserDaySnapshot(u),
-            fetchScoreRange(u.id, dates),
+            fetchScoreRange(u.id, allDates),
           ]);
           const byDate = new Map(range.map((r) => [r.date, r.daily_average]));
-          const t = byDate.get(today);
-          const y = byDate.get(yesterday);
+          const t = byDate.get(todayStr);
+          const y = byDate.get(yesterdayStr);
           const trend = t != null && y != null ? t - y : 0;
           return { ...snap, scoresByDate: byDate, trend };
         })
@@ -70,6 +79,7 @@ export default function RHDashboard() {
 
       setRows(enriched);
       setHeatRows(enriched.map((e) => ({ user: e.user, scoresByDate: e.scoresByDate })));
+      setHeatWeeks([week1, week2]);
 
       const w = await fetchWarningsFrom(user.id);
       setWarnings(w);
@@ -95,7 +105,7 @@ export default function RHDashboard() {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="font-display text-2xl font-bold">Overview Regional</p>
-              <p className="text-sm text-text-secondary">{user.name} · {user.branch}</p>
+              <p className="text-sm text-text-secondary">Hana RH · Regional Head</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => navigate('/summary/rh')} className="btn-teal">
@@ -173,8 +183,8 @@ export default function RHDashboard() {
               </div>
 
               <div className="card">
-                <SectionTitle>Heatmap Tim — 10 Hari ICU</SectionTitle>
-                <TeamHeatmap rows={heatRows} />
+                <SectionTitle>Heatmap Tim — 2 Minggu ICU</SectionTitle>
+                <TeamHeatmap rows={heatRows} weeks={heatWeeks} />
               </div>
             </>
           ) : (

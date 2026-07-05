@@ -1,43 +1,76 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pencil, Trash2, X, Check } from 'lucide-react';
-import { updateUser, deleteUser } from '../../lib/db';
+import { updateUser, deleteUser, fetchSupervisors } from '../../lib/db';
 import { ROLE_LABELS, clsx } from '../../lib/utils';
 import { Modal, ErrorBox, Spinner } from '../../components/ui';
 
 const ROLES = ['RH', 'BM', 'FWSS', 'FA'];
 
-const SUPERVISOR_ROLE = {
-  FA: 'FWSS',
-  FWSS: 'BM',
-  BM: 'RH',
-  RH: null,
+const SUPERVISOR_SECTIONS = {
+  FA:   [{ role: 'FWSS', multi: true }, { role: 'BM', multi: true }, { role: 'RH', multi: false }],
+  FWSS: [{ role: 'BM', multi: true }, { role: 'FA', multi: true }, { role: 'RH', multi: false }],
+  BM:   [{ role: 'FWSS', multi: true }, { role: 'FA', multi: true }, { role: 'RH', multi: false }],
 };
+
+function initSupState() { return { FA: [], FWSS: [], BM: [], RH: [] }; }
 
 function EditModal({ user, allUsers, onSave, onClose }) {
   const [form, setForm] = useState({
     name: user.name || '',
     role: user.role || 'FA',
     branch: user.branch || '',
-    supervisorId: user.supervisor_id || '',
   });
+  const [supSelections, setSupSelections] = useState(initSupState());
+  const [supLoading, setSupLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const supervisorRole = SUPERVISOR_ROLE[form.role];
-  const potentialSupervisors = supervisorRole
-    ? allUsers.filter((u) => u.role === supervisorRole && u.id !== user.id)
-    : [];
+  useEffect(() => {
+    (async () => {
+      try {
+        const existing = await fetchSupervisors(user.id);
+        const byRole = initSupState();
+        existing.forEach((sup) => {
+          if (!byRole[sup.role]) byRole[sup.role] = [];
+          byRole[sup.role].push(sup.id);
+        });
+        setSupSelections(byRole);
+      } catch {
+        /* ignore */
+      } finally {
+        setSupLoading(false);
+      }
+    })();
+  }, [user.id]);
+
+  const sections = SUPERVISOR_SECTIONS[form.role] || [];
+
+  function usersByRole(role) {
+    return allUsers.filter((u) => u.role === role && u.id !== user.id);
+  }
+
+  function toggleMulti(secRole, userId) {
+    setSupSelections((prev) => {
+      const cur = prev[secRole] || [];
+      return { ...prev, [secRole]: cur.includes(userId) ? cur.filter((id) => id !== userId) : [...cur, userId] };
+    });
+  }
+
+  function setSingle(secRole, userId) {
+    setSupSelections((prev) => ({ ...prev, [secRole]: userId ? [userId] : [] }));
+  }
 
   async function handleSave() {
     if (!form.name.trim()) return setError('Nama tidak boleh kosong.');
     setSaving(true);
     setError('');
     try {
+      const supervisorIds = sections.flatMap((sec) => supSelections[sec.role] || []);
       const updated = await updateUser(user.id, {
         name: form.name.trim(),
         role: form.role,
         branch: form.branch.trim(),
-        supervisorId: form.supervisorId || null,
+        supervisorIds,
       });
       onSave(updated);
     } catch (e) {
@@ -81,7 +114,7 @@ function EditModal({ user, allUsers, onSave, onClose }) {
           <select
             className="w-full px-3 py-2 text-sm"
             value={form.role}
-            onChange={(e) => setForm((f) => ({ ...f, role: e.target.value, supervisorId: '' }))}
+            onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
           >
             {ROLES.map((r) => (
               <option key={r} value={r}>{r} — {ROLE_LABELS[r]}</option>
@@ -99,20 +132,60 @@ function EditModal({ user, allUsers, onSave, onClose }) {
           />
         </div>
 
-        {supervisorRole && (
-          <div>
-            <label className="label">Atasan ({supervisorRole})</label>
-            <select
-              className="w-full px-3 py-2 text-sm"
-              value={form.supervisorId}
-              onChange={(e) => setForm((f) => ({ ...f, supervisorId: e.target.value }))}
-            >
-              <option value="">— Tidak ada —</option>
-              {potentialSupervisors.map((u) => (
-                <option key={u.id} value={u.id}>{u.name} ({u.branch})</option>
-              ))}
-            </select>
-          </div>
+        {sections.length > 0 && (
+          supLoading ? (
+            <div className="flex items-center gap-2 text-sm text-text-muted py-1"><Spinner size={14} /> Memuat atasan...</div>
+          ) : (
+            <div className="space-y-3">
+              {sections.map((sec) => {
+                const candidates = usersByRole(sec.role);
+                const selected = supSelections[sec.role] || [];
+                return (
+                  <div key={sec.role}>
+                    <label className="label mb-1">{ROLE_LABELS[sec.role] || sec.role} ({sec.role})</label>
+                    {candidates.length === 0 ? (
+                      <p className="text-xs text-text-muted bg-elevated border border-hana-border rounded-lg px-3 py-2">
+                        Belum ada {sec.role} terdaftar.
+                      </p>
+                    ) : sec.multi ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {candidates.map((u) => {
+                          const active = selected.includes(u.id);
+                          return (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => toggleMulti(sec.role, u.id)}
+                              className={clsx(
+                                'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                                active
+                                  ? 'bg-hana-teal-500 text-white border-hana-teal-500'
+                                  : 'bg-white text-text-secondary border-hana-border hover:border-hana-teal-400'
+                              )}
+                            >
+                              {active && <Check size={10} />}
+                              {u.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <select
+                        className="w-full px-3 py-2 text-sm"
+                        value={selected[0] || ''}
+                        onChange={(e) => setSingle(sec.role, e.target.value)}
+                      >
+                        <option value="">— Tidak ada —</option>
+                        {candidates.map((u) => (
+                          <option key={u.id} value={u.id}>{u.name} ({u.branch})</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )
         )}
       </div>
     </Modal>

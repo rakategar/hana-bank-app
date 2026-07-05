@@ -10,7 +10,7 @@ import { clsx } from '../lib/utils';
 //  schema       : array field definition (lihat formSchemaFor di timeSlots.js)
 //  value        : object nilai { key: value | [items] }
 //  onChange     : (newValueObject) => void
-//  users        : { supervisor, subordinates } untuk field user-select
+//  users        : { allSupervisors, allSubordinates } untuk field user-select
 //  readOnly     : true → tampilkan sebagai teks
 //  disabled     : true → input dinonaktifkan
 //  mode         : 'plan' (default) | 'actual'
@@ -20,12 +20,12 @@ import { clsx } from '../lib/utils';
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 function candidatesFor(field, users) {
-  if (field.source === 'supervisor') return users?.supervisor ? [users.supervisor] : [];
-  return users?.subordinates || [];
+  if (field.source === 'supervisor') return users?.allSupervisors || [];
+  return users?.allSubordinates || [];
 }
 
 function userName(id, users) {
-  const all = [users?.supervisor, ...(users?.subordinates || [])].filter(Boolean);
+  const all = [...(users?.allSupervisors || []), ...(users?.allSubordinates || [])].filter(Boolean);
   const u = all.find((x) => x && x.id === id);
   return u ? u.name : id;
 }
@@ -89,6 +89,37 @@ export default function SlotFormRenderer({
               field={field}
               value={value?.[field.key]}
               plannedItems={plannedItems}
+              onChange={(v) => setField(field.key, v)}
+              users={users}
+              disabled={disabled}
+            />
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (mode === 'freeActual') {
+    return (
+      <div className="grid gap-3">
+        {schema.map((field) => {
+          if (field.type === 'list') {
+            return (
+              <FreeActualListField
+                key={field.key}
+                field={field}
+                value={value?.[field.key]}
+                onChange={(v) => setField(field.key, v)}
+                users={users}
+                disabled={disabled}
+              />
+            );
+          }
+          return (
+            <FieldEditor
+              key={field.key}
+              field={field}
+              value={value?.[field.key]}
               onChange={(v) => setField(field.key, v)}
               users={users}
               disabled={disabled}
@@ -300,6 +331,47 @@ function ListField({ field, value, onChange, users, disabled }) {
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-hana-teal-700 hover:text-hana-teal-500 px-2 py-1"
           >
             <Plus size={14} /> {field.addLabel}
+          </button>
+        )}
+        {rows.length === 0 && disabled && <p className="text-xs text-text-muted italic">—</p>}
+      </div>
+    </div>
+  );
+}
+
+function FreeActualListField({ field, value, onChange, users, disabled }) {
+  const rows = Array.isArray(value) ? value : [];
+  const allSchema = [...(field.itemSchema || []), ...(field.resultSchema || [])];
+
+  const blankRow = () => Object.fromEntries(allSchema.map((s) => [s.key, s.type === 'user-select' && s.multi ? [] : '']));
+  const addRow = () => onChange([...rows, blankRow()]);
+  const removeRow = (i) => onChange(rows.filter((_, idx) => idx !== i));
+  const updateCell = (i, key, v) => onChange(rows.map((r, idx) => (idx === i ? { ...r, [key]: v } : r)));
+
+  return (
+    <div>
+      <label className="label">{field.label}</label>
+      <div className="space-y-2">
+        {rows.map((row, i) => (
+          <div key={i} className="rounded-lg border border-hana-border bg-elevated/50 p-2.5 relative">
+            <div className="grid gap-2">
+              {allSchema.map((sub) => (
+                <div key={sub.key}>
+                  <label className="block text-[10px] font-medium text-text-muted mb-0.5">{sub.label}</label>
+                  <InputControl field={sub} value={row?.[sub.key]} onChange={(v) => updateCell(i, sub.key, v)} users={users} disabled={disabled} />
+                </div>
+              ))}
+            </div>
+            {!disabled && (
+              <button type="button" onClick={() => removeRow(i)} className="absolute top-2 right-2 text-score-1 hover:bg-score-1/10 rounded p-1" title="Hapus">
+                <Trash2 size={13} />
+              </button>
+            )}
+          </div>
+        ))}
+        {!disabled && (
+          <button type="button" onClick={addRow} className="inline-flex items-center gap-1.5 text-xs font-semibold text-hana-teal-700 hover:text-hana-teal-500 px-2 py-1">
+            <Plus size={14} /> Tambah
           </button>
         )}
         {rows.length === 0 && disabled && <p className="text-xs text-text-muted italic">—</p>}

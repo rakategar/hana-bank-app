@@ -6,7 +6,7 @@ import { FullSpinner, ErrorBox } from '../../components/ui';
 import { fetchSummariesBySupervisor, fetchAllUsers } from '../../lib/db';
 import { formatDateID } from '../../lib/utils';
 
-export default function NotesArchive() {
+export default function BMNotesArchive() {
   const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [namesById, setNamesById] = useState({});
@@ -30,7 +30,6 @@ export default function NotesArchive() {
     })();
   }, [user.id]);
 
-  // Kelompokkan per tanggal (sudah terurut desc dari query)
   const grouped = useMemo(() => {
     const map = new Map();
     rows.forEach((r) => {
@@ -41,7 +40,7 @@ export default function NotesArchive() {
   }, [rows]);
 
   return (
-    <Layout title="Arsip Catatan" back="/summary/fwss">
+    <Layout title="Arsip Catatan" back="/summary/bm">
       {loading ? (
         <FullSpinner label="Memuat arsip catatan..." />
       ) : (
@@ -53,7 +52,7 @@ export default function NotesArchive() {
               <FolderClock size={36} className="text-text-muted mx-auto mb-3" />
               <p className="font-semibold">Belum ada catatan tersimpan</p>
               <p className="text-sm text-text-secondary mt-1">
-                Catatan & action plan yang Anda simpan di Summary FA akan terkumpul di sini.
+                Catatan & action plan yang Anda simpan di Summary Tim akan terkumpul di sini.
               </p>
             </div>
           ) : (

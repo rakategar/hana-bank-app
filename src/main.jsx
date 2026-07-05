@@ -4,12 +4,18 @@ import { BrowserRouter } from 'react-router-dom';
 import { ClerkProvider } from '@clerk/react';
 import App from './App.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
-import { CLERK_PUBLISHABLE_KEY, CLERK_KEY_MISSING } from './lib/appMode';
+import { DemoTimeProvider } from './contexts/DemoTimeContext.jsx';
+import { CLERK_PUBLISHABLE_KEY, CLERK_KEY_MISSING, IS_DEMO } from './lib/appMode';
 import './index.css';
 
-// Clear stale demo session/clock data from localStorage
-try { localStorage.removeItem('icu_demo_now'); } catch {}
-try { localStorage.removeItem('icu_session'); } catch {};
+
+// Daftarkan service worker untuk PWA install prompt (Android Chrome) — hanya di production.
+// Di dev (Vite HMR aktif), SW dengan skipWaiting() bisa menyebabkan reload tak terduga.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 
 // Pemulihan blank page tanpa memaksa reload tiap kali tombol "kembali" ditekan.
 // Penyebab umum blank page = chunk JS basi setelah deploy baru (dynamic import gagal).
@@ -74,24 +80,29 @@ function ClerkKeyMissing() {
 }
 
 function Providers({ children }) {
-  if (CLERK_KEY_MISSING) {
-    return <ClerkKeyMissing />;
-  }
-  return (
+  const inner = IS_DEMO ? (
+    <AuthProvider>{children}</AuthProvider>
+  ) : CLERK_KEY_MISSING ? (
+    <ClerkKeyMissing />
+  ) : (
     <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} afterSignOutUrl="/">
       <AuthProvider>{children}</AuthProvider>
     </ClerkProvider>
   );
+
+  return IS_DEMO ? (
+    <DemoTimeProvider>{inner}</DemoTimeProvider>
+  ) : inner;
 }
 
+// StrictMode dinonaktifkan di dev untuk mencegah double-mount yang menyebabkan flicker.
+// Di production build, React sendiri tidak double-mount (StrictMode hanya berlaku di dev).
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <BrowserRouter>
-        <Providers>
-          <App />
-        </Providers>
-      </BrowserRouter>
-    </ErrorBoundary>
-  </React.StrictMode>
+  <ErrorBoundary>
+    <BrowserRouter>
+      <Providers>
+        <App />
+      </Providers>
+    </BrowserRouter>
+  </ErrorBoundary>
 );

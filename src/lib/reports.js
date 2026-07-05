@@ -59,6 +59,98 @@ export function lowPerformerIds(team = []) {
     .map((r) => r.user_id);
 }
 
+// ── PDF: laporan detail aktivitas satu user, multi-hari (range) ──
+export async function exportUserDetailPDFRange({ user, dates, activitiesMap, scoresMap }) {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]);
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+  const dateLabel =
+    dates.length === 1
+      ? formatDateID(dates[0])
+      : `${formatDateID(dates[0])} – ${formatDateID(dates[dates.length - 1])}`;
+
+  // Header dokumen
+  doc.setFontSize(16);
+  doc.setTextColor(`#${TEAL}`);
+  doc.text('Laporan Detail Aktivitas Harian', 40, 40);
+  doc.setFontSize(10);
+  doc.setTextColor(`#${INK}`);
+  doc.text(
+    `${user.name} · ${ROLE_LABELS[user.role] || user.role}${user.branch ? ' · ' + user.branch : ''}`,
+    40, 58
+  );
+  doc.text(`Periode: ${dateLabel}`, 40, 72);
+
+  let isFirstTable = true;
+
+  for (const date of dates) {
+    const activity = activitiesMap[date];
+    const score = scoresMap[date];
+    const activities = Array.isArray(activity?.activities) ? activity.activities : [];
+    const scoreByTime = new Map((score?.scores || []).map((s) => [s.time, s]));
+
+    if (!isFirstTable) doc.addPage();
+    isFirstTable = false;
+
+    // Subheader per hari
+    const startY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 24 : 92;
+    doc.setFontSize(11);
+    doc.setTextColor(`#${TEAL}`);
+    doc.text(formatDateID(date), 40, startY);
+    if (score?.daily_average != null) {
+      doc.setFontSize(9);
+      doc.setTextColor(`#${INK}`);
+      doc.text(`Rata-rata: ${Number(score.daily_average).toFixed(2)} (${score.daily_level || '-'})`, 200, startY);
+    }
+
+    const body = activities.map((a) => {
+      const sc = scoreByTime.get(a.time);
+      return [
+        a.endTime ? `${a.time}–${a.endTime}` : a.time,
+        a.label || '',
+        serializeStructuredData(a.planned_data) || a.planned || '-',
+        serializeStructuredData(a.actual_data) || a.actual || '-',
+        STATUS_ID[a.activity_status] || a.activity_status || '-',
+        sc?.score != null ? String(sc.score) : '-',
+        [a.notes, sc?.reasoning].filter(Boolean).join(' — ') || '-',
+      ];
+    });
+
+    autoTable(doc, {
+      startY: startY + 10,
+      head: [['Jam', 'Kegiatan', 'Rencana', 'Aktual', 'Status', 'Skor', 'Catatan / Alasan']],
+      body: body.length ? body : [['-', 'Tidak ada aktivitas tercatat', '-', '-', '-', '-', '-']],
+      styles: { fontSize: 7.5, cellPadding: 3, valign: 'top', overflow: 'linebreak' },
+      headStyles: { fillColor: [2, 107, 88], textColor: 255, fontSize: 8 },
+      columnStyles: {
+        0: { cellWidth: 55 },
+        1: { cellWidth: 120 },
+        2: { cellWidth: 170 },
+        3: { cellWidth: 170 },
+        4: { cellWidth: 55 },
+        5: { cellWidth: 35, halign: 'center' },
+        6: { cellWidth: 130 },
+      },
+    });
+
+    if (score?.summary) {
+      const y = doc.lastAutoTable.finalY + 12;
+      doc.setFontSize(9);
+      doc.setTextColor(`#${TEAL}`);
+      doc.text('Ringkasan AI:', 40, y);
+      doc.setFontSize(8.5);
+      doc.setTextColor(`#${INK}`);
+      doc.text(doc.splitTextToSize(score.summary, 760), 40, y + 12);
+    }
+  }
+
+  const safeName = dates.length === 1 ? dates[0] : `${dates[0]}_${dates[dates.length - 1]}`;
+  doc.save(`laporan-${user.name.replace(/\s+/g, '_')}-${safeName}.pdf`);
+}
+
 // ── PDF: laporan detail aktivitas satu user untuk tanggal terpilih ──
 export async function exportUserDetailPDF({ user, date, activity, score }) {
   const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
@@ -154,8 +246,18 @@ async function loadLogoDataUrl() {
   }
 }
 
+function chunkArray(arr, size) {
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
+  return chunks;
+}
+
 // ── PPT: laporan ringkasan keseluruhan (RH) — berbranding & profesional ──
-export async function exportOverallPPT({ rhName, date, team = [], result }) {
+export async function exportOverallPPT({ rhName, date, dateFrom, dateTo, team = [], result }) {
+  // Support pemanggilan lama (date tunggal) maupun baru (dateFrom/dateTo)
+  const rangeFrom = dateFrom || date;
+  const rangeTo = dateTo || date;
+  const dateLabel = rangeFrom === rangeTo ? formatDateID(rangeFrom) : `${formatDateID(rangeFrom)} – ${formatDateID(rangeTo)}`;
   const { default: pptxgen } = await import('pptxgenjs');
   const pptx = new pptxgen();
   pptx.layout = 'LAYOUT_WIDE'; // 13.33 x 7.5 in
@@ -165,6 +267,8 @@ export async function exportOverallPPT({ rhName, date, team = [], result }) {
   const stats = buildTeamStats(team);
   const ranking = result?.performance_ranking?.length ? result.performance_ranking : stats.ranking;
   const summaryById = Object.fromEntries(team.map((u) => [u.user_id, u.summary]));
+  const scoredDaysById = Object.fromEntries(team.map((u) => [u.user_id, { scored: u.scored_days, total: u.total_days }]));
+  const isRange = rangeFrom !== rangeTo;
   const logo = await loadLogoDataUrl();
 
   // Slide master berbranding (header/footer/logo/nomor halaman)
@@ -174,7 +278,7 @@ export async function exportOverallPPT({ rhName, date, team = [], result }) {
     objects: [
       { rect: { x: 0, y: 0, w: '100%', h: 0.16, fill: { color: TEAL } } },
       { rect: { x: 0, y: 7.34, w: '100%', h: 0.16, fill: { color: TEAL } } },
-      { text: { text: `Rahasia · ICU Class Bank Hana · ${formatDateID(date)}`, options: { x: 0.4, y: 7.0, w: 10, h: 0.3, fontSize: 8, color: MUTED } } },
+      { text: { text: `Rahasia · ICU Class Bank Hana · ${dateLabel}`, options: { x: 0.4, y: 7.0, w: 10, h: 0.3, fontSize: 8, color: MUTED } } },
       ...(logo ? [{ image: { data: logo, x: 12.55, y: 0.28, w: 0.55, h: 0.42 } }] : []),
     ],
     slideNumber: { x: 12.7, y: 6.98, w: 0.5, h: 0.3, fontSize: 8, color: MUTED, align: 'right' },
@@ -190,7 +294,7 @@ export async function exportOverallPPT({ rhName, date, team = [], result }) {
   if (logo) s1.addImage({ data: logo, x: 0.6, y: 0.7, w: 1.0, h: 0.76 });
   s1.addText('Laporan Kinerja Regional', { x: 0.6, y: 1.9, w: 12, h: 0.9, fontSize: 40, bold: true, color: 'FFFFFF' });
   s1.addText('ICU Class — Intensive Control & Upgrading', { x: 0.6, y: 2.85, w: 12, h: 0.5, fontSize: 18, color: 'CDF0E9' });
-  s1.addText(`${formatDateID(date)}${rhName ? '   •   ' + rhName : ''}`, { x: 0.62, y: 3.5, w: 12, h: 0.4, fontSize: 14, color: '94A3B8' });
+  s1.addText(`${dateLabel}${rhName ? '   •   ' + rhName : ''}`, { x: 0.62, y: 3.5, w: 12, h: 0.4, fontSize: 14, color: '94A3B8' });
 
   // ── Slide 2: Overview / KPI + grafik skor ──
   {
@@ -242,43 +346,48 @@ export async function exportOverallPPT({ rhName, date, team = [], result }) {
     s.addText(result.executive_summary, { x: 0.5, y: 1.8, w: 12.3, h: 4.8, fontSize: 15, color: INK, valign: 'top', lineSpacingMultiple: 1.2 });
   }
 
-  // ── Slide 4: Ranking Performa (tabel berwarna) ──
+  // ── Slide 4+: Ranking Performa (maks 10 per slide) ──
   if (ranking.length) {
-    const s = pptx.addSlide({ masterName: 'HANA' });
-    titleBar(s, 'Ranking Performa');
+    const medal = ['🥇', '🥈', '🥉'];
     const head = ['#', 'Nama', 'Role', 'Cabang', 'Skor', 'Level'].map((t) => ({
       text: t, options: { bold: true, color: 'FFFFFF', fill: { color: TEAL }, align: 'left', valign: 'middle' },
     }));
-    const medal = ['🥇', '🥈', '🥉'];
-    const body = ranking.map((r, i) => {
-      const rowFill = i % 2 === 0 ? 'FFFFFF' : 'F4F6FA';
-      const base = { color: INK, fill: { color: rowFill }, valign: 'middle' };
-      return [
-        { text: `${medal[i] || ''} ${r.rank}`.trim(), options: base },
-        { text: String(r.name ?? ''), options: { ...base, bold: true } },
-        { text: String(r.role ?? ''), options: base },
-        { text: String(r.branch ?? '-'), options: base },
-        { text: r.score != null ? Number(r.score).toFixed(1) : '—', options: { ...base, align: 'center' } },
-        { text: r.level ? statusLabel(r.level) : 'BELUM ADA DATA', options: { color: 'FFFFFF', bold: true, align: 'center', valign: 'middle', fill: { color: r.level ? levelHex(r.level) : MUTED } } },
-      ];
-    });
-    s.addTable([head, ...body], {
-      x: 0.5, y: 1.25, w: 12.3, colW: [1.1, 3.6, 1.6, 2.8, 1.2, 2.0],
-      fontSize: 12, rowH: 0.42, border: { type: 'solid', color: 'E2E8F0', pt: 1 }, valign: 'middle',
+    chunkArray(ranking, 10).forEach((chunk, ci) => {
+      const s = pptx.addSlide({ masterName: 'HANA' });
+      titleBar(s, ci === 0 ? 'Ranking Performa' : 'Ranking Performa (lanjutan)');
+      const body = chunk.map((r, i) => {
+        const globalIdx = ci * 10 + i;
+        const rowFill = i % 2 === 0 ? 'FFFFFF' : 'F4F6FA';
+        const base = { color: INK, fill: { color: rowFill }, valign: 'middle' };
+        return [
+          { text: `${medal[globalIdx] || ''} ${r.rank}`.trim(), options: base },
+          { text: String(r.name ?? ''), options: { ...base, bold: true } },
+          { text: String(r.role ?? ''), options: base },
+          { text: String(r.branch ?? '-'), options: base },
+          { text: r.score != null ? Number(r.score).toFixed(1) : '—', options: { ...base, align: 'center' } },
+          { text: r.level ? statusLabel(r.level) : 'BELUM ADA DATA', options: { color: 'FFFFFF', bold: true, align: 'center', valign: 'middle', fill: { color: r.level ? levelHex(r.level) : MUTED } } },
+        ];
+      });
+      s.addTable([head, ...body], {
+        x: 0.5, y: 1.25, w: 12.3, colW: [1.1, 3.6, 1.6, 2.8, 1.2, 2.0],
+        fontSize: 12, rowH: 0.42, border: { type: 'solid', color: 'E2E8F0', pt: 1 }, valign: 'middle',
+      });
     });
   }
 
-  // ── Slide 5: Risk Flags ──
+  // ── Slide 5+: Risk Flags (maks 5 per slide) ──
   if (result?.risk_flags?.length) {
-    const s = pptx.addSlide({ masterName: 'HANA' });
-    titleBar(s, 'Risk Flags', 'EF4444');
-    let y = 1.3;
-    result.risk_flags.slice(0, 8).forEach((r) => {
-      const uc = URGENCY_HEX[r.urgency] || MUTED;
-      s.addShape(pptx.ShapeType.roundRect, { x: 0.5, y, w: 12.3, h: 0.7, rectRadius: 0.06, fill: { color: 'F4F6FA' }, line: { color: 'E2E8F0', width: 1 } });
-      s.addText(String(r.urgency || '-').toUpperCase(), { x: 0.65, y: y + 0.16, w: 1.4, h: 0.38, fontSize: 10, bold: true, align: 'center', color: 'FFFFFF', fill: { color: uc }, rectRadius: 0.1 });
-      s.addText([{ text: `${r.name}: `, options: { bold: true, color: INK } }, { text: r.issue || '', options: { color: '475569' } }], { x: 2.2, y, w: 10.4, h: 0.7, fontSize: 12, valign: 'middle' });
-      y += 0.82;
+    chunkArray(result.risk_flags, 5).forEach((chunk, ci) => {
+      const s = pptx.addSlide({ masterName: 'HANA' });
+      titleBar(s, ci === 0 ? 'Risk Flags' : 'Risk Flags (lanjutan)', 'EF4444');
+      let y = 1.3;
+      chunk.forEach((r) => {
+        const uc = URGENCY_HEX[r.urgency] || MUTED;
+        s.addShape(pptx.ShapeType.roundRect, { x: 0.5, y, w: 12.3, h: 0.7, rectRadius: 0.06, fill: { color: 'F4F6FA' }, line: { color: 'E2E8F0', width: 1 } });
+        s.addText(String(r.urgency || '-').toUpperCase(), { x: 0.65, y: y + 0.16, w: 1.4, h: 0.38, fontSize: 10, bold: true, align: 'center', color: 'FFFFFF', fill: { color: uc }, rectRadius: 0.1 });
+        s.addText([{ text: `${r.name}: `, options: { bold: true, color: INK } }, { text: r.issue || '', options: { color: '475569' } }], { x: 2.2, y, w: 10.4, h: 0.7, fontSize: 12, valign: 'middle' });
+        y += 0.82;
+      });
     });
   }
 
@@ -299,15 +408,24 @@ export async function exportOverallPPT({ rhName, date, team = [], result }) {
   ranking.filter((r) => r.score != null).slice(0, 12).forEach((r) => {
     const s = pptx.addSlide({ masterName: 'HANA' });
     titleBar(s, r.name);
-    s.addText(`${r.role}${r.branch ? ' · ' + r.branch : ''}`, { x: 0.5, y: 1.1, w: 9, h: 0.4, fontSize: 13, color: '475569' });
-    // Chip skor + level
-    s.addShape(pptx.ShapeType.roundRect, { x: 0.5, y: 1.7, w: 2.4, h: 1.3, rectRadius: 0.1, fill: { color: levelHex(r.level) } });
-    s.addText(Number(r.score).toFixed(2), { x: 0.5, y: 1.85, w: 2.4, h: 0.7, fontSize: 36, bold: true, color: 'FFFFFF', align: 'center' });
-    s.addText(statusLabel(r.level), { x: 0.5, y: 2.55, w: 2.4, h: 0.35, fontSize: 11, bold: true, color: 'FFFFFF', align: 'center' });
-    // Ringkasan harian
-    const text = summaryById[r.user_id] || 'Tidak ada ringkasan AI untuk tanggal ini.';
-    s.addText('Ringkasan Hari Ini', { x: 3.2, y: 1.7, w: 9.6, h: 0.4, fontSize: 13, bold: true, color: TEAL });
-    s.addText(text, { x: 3.2, y: 2.15, w: 9.6, h: 4.4, fontSize: 14, color: INK, valign: 'top', lineSpacingMultiple: 1.2 });
+    const days = scoredDaysById[r.user_id];
+    const kehadiranLabel = days?.total
+      ? `${r.role}${r.branch ? ' · ' + r.branch : ''} · Data: ${days.scored}/${days.total} hari kerja`
+      : `${r.role}${r.branch ? ' · ' + r.branch : ''}`;
+    s.addText(kehadiranLabel, { x: 0.5, y: 1.1, w: 12, h: 0.4, fontSize: 13, color: '475569' });
+
+    // Chip skor rata-rata + level
+    s.addShape(pptx.ShapeType.roundRect, { x: 0.5, y: 1.7, w: 2.4, h: 1.5, rectRadius: 0.1, fill: { color: levelHex(r.level) } });
+    s.addText(Number(r.score).toFixed(2), { x: 0.5, y: 1.82, w: 2.4, h: 0.72, fontSize: 36, bold: true, color: 'FFFFFF', align: 'center' });
+    s.addText(isRange ? 'Rata-rata Periode' : 'Skor Hari Ini', { x: 0.5, y: 2.54, w: 2.4, h: 0.28, fontSize: 9, color: 'FFFFFF', align: 'center' });
+    s.addText(statusLabel(r.level), { x: 0.5, y: 2.84, w: 2.4, h: 0.3, fontSize: 10, bold: true, color: 'FFFFFF', align: 'center' });
+
+    // Ringkasan periode (max 260 kata)
+    const ringkasanLabel = isRange ? `Ringkasan Periode (${dateLabel})` : 'Ringkasan Hari Ini';
+    const rawText = summaryById[r.user_id] || 'Tidak ada ringkasan AI untuk periode ini.';
+    const text = rawText.split(/\s+/).slice(0, 260).join(' ');
+    s.addText(ringkasanLabel, { x: 3.2, y: 1.7, w: 9.6, h: 0.4, fontSize: 13, bold: true, color: TEAL });
+    s.addText(text, { x: 3.2, y: 2.15, w: 9.6, h: 4.4, fontSize: 13, color: INK, valign: 'top', lineSpacingMultiple: 1.2 });
   });
 
   // ── Slide penutup ──
@@ -325,5 +443,6 @@ export async function exportOverallPPT({ rhName, date, team = [], result }) {
     s.addText('Disusun otomatis oleh ICU Class Bank Hana', { x: 0.5, y: 6.3, w: 12, h: 0.4, fontSize: 11, italic: true, color: MUTED });
   }
 
-  await pptx.writeFile({ fileName: `laporan-regional-${date}.pptx` });
+  const fileRange = rangeFrom === rangeTo ? rangeFrom : `${rangeFrom}_${rangeTo}`;
+  await pptx.writeFile({ fileName: `laporan-regional-${fileRange}.pptx` });
 }

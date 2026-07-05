@@ -1,20 +1,25 @@
 import { useEffect, useState } from 'react';
-import { Bot, Save, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bot, Save, AlertTriangle, CheckCircle2, Check, FolderClock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import Layout from '../../components/Layout';
 import { FullSpinner, ErrorBox, Spinner } from '../../components/ui';
 import { PersonSummaryCard, ActionPlanEditor } from '../../components/summary';
 import {
+  fetchAllUsers,
   fetchSubordinates,
   fetchScore,
   fetchSummaryFor,
   upsertSummary,
 } from '../../lib/db';
 import { summarizeForBm } from '../../lib/ai';
-import { todayISO, statusFromLevel } from '../../lib/utils';
+import { todayISO, statusFromLevel, clsx } from '../../lib/utils';
+
+// Role-role yang bisa dipilih BM untuk di-summary
+const SUMMARY_ROLES = ['FWSS', 'FA'];
 
 const ACTION_TEMPLATES = (names) => [
-  ...names.map((n) => `Coaching FWSS ${n}`),
+  ...names.map((n) => `Coaching ${n}`),
   'Support high-potential customer case',
   'Joint meeting dengan tim',
   'Eskalasi ke RH',
@@ -22,7 +27,9 @@ const ACTION_TEMPLATES = (names) => [
 
 export default function BMSummary() {
   const { user } = useAuth();
-  const [fwssList, setFwssList] = useState([]);
+  const navigate = useNavigate();
+  const [members, setMembers] = useState([]);      // FWSS + FA semua
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -35,17 +42,20 @@ export default function BMSummary() {
   useEffect(() => {
     (async () => {
       try {
-        const subs = await fetchSubordinates(user.id);
-        setFwssList(subs);
+        const allUsers = await fetchAllUsers();
+        const eligible = allUsers.filter((u) => SUMMARY_ROLES.includes(u.role));
+        setMembers(eligible);
+        setSelectedIds(new Set());
+
         const existing = await Promise.all(
-          subs.map((f) => fetchSummaryFor({ supervisorId: user.id, targetUserId: f.id }))
+          eligible.map((m) => fetchSummaryFor({ supervisorId: user.id, targetUserId: m.id }))
         );
         const n = {}, a = {};
         let savedData = null;
         existing.forEach((row, i) => {
           if (row) {
-            n[subs[i].id] = row.supervisor_notes || '';
-            a[subs[i].id] = row.action_plans || [];
+            n[eligible[i].id] = row.supervisor_notes || '';
+            a[eligible[i].id] = row.action_plans || [];
             if (row.summary_data) savedData = row.summary_data;
           }
         });
@@ -60,35 +70,61 @@ export default function BMSummary() {
     })();
   }, [user.id]);
 
+  function toggle(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll() { setSelectedIds(new Set(members.map((m) => m.id))); }
+  function clearAll() { setSelectedIds(new Set()); }
+
   async function handleGenerate() {
     setGenerating(true);
     setError('');
     try {
+      const targets = members.filter((m) => selectedIds.has(m.id));
       const fwssData = await Promise.all(
-        fwssList.map(async (fwss) => {
-          const [score, faSummaryRows, fas] = await Promise.all([
-            fetchScore(fwss.id, todayISO()),
-            // ringkasan yang dibuat FWSS untuk FA-nya
-            fetchSummaryFor({ supervisorId: fwss.id, targetUserId: fwss.id }).catch(() => null),
-            fetchSubordinates(fwss.id),
-          ]);
-          const faScores = await Promise.all(
-            fas.map(async (fa) => {
-              const s = await fetchScore(fa.id, todayISO());
-              return { id: fa.id, name: fa.name, daily_average: s?.daily_average ?? null, daily_level: s?.daily_level ?? null };
-            })
-          );
-          return {
-            id: fwss.id,
-            name: fwss.name,
-            score: score ? { daily_average: score.daily_average, daily_level: score.daily_level } : null,
-            faSummary: faSummaryRows?.summary_data || null,
-            faScores,
-          };
+        targets.map(async (member) => {
+          if (member.role === 'FWSS') {
+            // Untuk FWSS: ambil score + summary tim + daftar FA di bawahnya
+            const [score, faSummaryRow, fas] = await Promise.all([
+              fetchScore(member.id, todayISO()),
+              fetchSummaryFor({ supervisorId: member.id, targetUserId: member.id }).catch(() => null),
+              fetchSubordinates(member.id),
+            ]);
+            const faScores = await Promise.all(
+              fas.map(async (fa) => {
+                const s = await fetchScore(fa.id, todayISO());
+                return { id: fa.id, name: fa.name, daily_average: s?.daily_average ?? null, daily_level: s?.daily_level ?? null };
+              })
+            );
+            return {
+              id: member.id,
+              name: member.name,
+              role: member.role,
+              score: score ? { daily_average: score.daily_average, daily_level: score.daily_level } : null,
+              faSummary: faSummaryRow?.summary_data || null,
+              faScores,
+            };
+          } else {
+            // Untuk FA: cukup ambil score individual
+            const score = await fetchScore(member.id, todayISO());
+            return {
+              id: member.id,
+              name: member.name,
+              role: member.role,
+              score: score ? { daily_average: score.daily_average, daily_level: score.daily_level } : null,
+              faSummary: null,
+              faScores: [],
+            };
+          }
         })
       );
       const result = await summarizeForBm({ fwssData });
-      // Audit: paksa performance_status sesuai daily_level nyata tiap FWSS.
       const levelById = Object.fromEntries(fwssData.map((f) => [f.id, f.score?.daily_level ?? null]));
       const nameById = Object.fromEntries(fwssData.map((f) => [f.id, f.name]));
       (result?.fwss_summaries || []).forEach((s) => {
@@ -103,22 +139,22 @@ export default function BMSummary() {
     }
   }
 
-  async function handleSave(fwssId) {
+  async function handleSave(memberId) {
     setSaving(true);
     setError('');
     try {
-      const fwss = fwssList.find((x) => x.id === fwssId);
-      const sum = aiResult?.fwss_summaries?.find((s) => s.fwss_id === fwssId || s.fwss_name === fwss?.name);
+      const member = members.find((x) => x.id === memberId);
+      const sum = aiResult?.fwss_summaries?.find((s) => s.fwss_id === memberId || s.fwss_name === member?.name);
       await upsertSummary({
         supervisorId: user.id,
-        targetUserId: fwssId,
+        targetUserId: memberId,
         aiSummary: sum?.summary || null,
         summaryData: aiResult,
-        supervisorNotes: notes[fwssId] || '',
-        actionPlans: actions[fwssId] || [],
+        supervisorNotes: notes[memberId] || '',
+        actionPlans: actions[memberId] || [],
       });
-      setSavedFor((s) => ({ ...s, [fwssId]: true }));
-      setTimeout(() => setSavedFor((s) => ({ ...s, [fwssId]: false })), 2500);
+      setSavedFor((s) => ({ ...s, [memberId]: true }));
+      setTimeout(() => setSavedFor((s) => ({ ...s, [memberId]: false })), 2500);
     } catch (e) {
       setError(e.message || 'Gagal menyimpan.');
     } finally {
@@ -126,9 +162,17 @@ export default function BMSummary() {
     }
   }
 
-  function matchSummary(fwss) {
-    return aiResult?.fwss_summaries?.find((s) => s.fwss_id === fwss.id || s.fwss_name === fwss.name);
+  function matchSummary(member) {
+    return aiResult?.fwss_summaries?.find((s) => s.fwss_id === member.id || s.fwss_name === member.name);
   }
+
+  // Grup member berdasarkan role untuk UI
+  const membersByRole = SUMMARY_ROLES.reduce((acc, role) => {
+    acc[role] = members.filter((m) => m.role === role);
+    return acc;
+  }, {});
+
+  const displayMembers = members.filter((m) => selectedIds.has(m.id));
 
   return (
     <Layout title="Summary Tim" back="/dashboard/bm">
@@ -138,24 +182,79 @@ export default function BMSummary() {
         <div className="space-y-4">
           {error && <ErrorBox>{error}</ErrorBox>}
 
-          {fwssList.length === 0 && (
-            <div className="card border-score-2/40 bg-score-2/10 text-center py-6">
-              <p className="text-sm font-semibold text-score-2 mb-1">Belum ada FWSS terdeteksi</p>
-              <p className="text-xs text-text-secondary leading-relaxed mb-3 max-w-sm mx-auto">
-                Pastikan FWSS Anda sudah mendaftar dan memilih Anda sebagai atasan (BM) saat onboarding.
-              </p>
+          <div className="flex justify-end">
+            <button onClick={() => navigate('/notes-archive/bm')} className="btn-ghost !py-2 text-xs">
+              <FolderClock size={14} /> Arsip Catatan
+            </button>
+          </div>
+
+          {/* Pilih anggota yang akan di-summary */}
+          {members.length > 0 && (
+            <div className="card space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Pilih Anggota untuk Di-Summary</p>
+                <div className="flex gap-2">
+                  <button onClick={selectAll} className="text-xs text-hana-teal-700 hover:underline">
+                    Pilih Semua
+                  </button>
+                  <span className="text-text-muted">·</span>
+                  <button onClick={clearAll} className="text-xs text-text-secondary hover:underline">
+                    Batalkan Semua
+                  </button>
+                </div>
+              </div>
+              {SUMMARY_ROLES.map((role) => {
+                const group = membersByRole[role] || [];
+                if (group.length === 0) return null;
+                return (
+                  <div key={role}>
+                    <p className="text-xs font-medium text-text-muted mb-1.5">{role}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {group.map((m) => {
+                        const active = selectedIds.has(m.id);
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => toggle(m.id)}
+                            className={clsx(
+                              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors',
+                              active
+                                ? 'bg-hana-teal-500 text-white border-hana-teal-500'
+                                : 'bg-white text-text-secondary border-hana-border hover:border-hana-teal-400'
+                            )}
+                          >
+                            {active && <Check size={11} />}
+                            {m.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          {fwssList.length > 0 && !aiResult && (
+          {members.length === 0 && (
+            <div className="card text-center py-6">
+              <p className="text-sm text-text-muted">Belum ada anggota tim terdaftar di sistem.</p>
+            </div>
+          )}
+
+          {members.length > 0 && !aiResult && (
             <div className="card text-center py-8">
               <Bot size={36} className="text-hana-teal-700 mx-auto mb-3" />
               <p className="text-sm text-text-secondary mb-4">
-                Generate ringkasan kinerja {fwssList.length} FWSS beserta FA mereka.
+                Generate ringkasan kinerja {selectedIds.size} anggota yang dipilih hari ini.
               </p>
-              <button onClick={handleGenerate} disabled={generating} className="btn-teal mx-auto">
+              <button
+                onClick={handleGenerate}
+                disabled={generating || selectedIds.size === 0}
+                className="btn-teal mx-auto"
+              >
                 {generating ? <Spinner size={18} className="text-white" /> : <Bot size={18} />}
-                {generating ? 'Menganalisis kinerja tim...' : 'Generate Summary Tim'}
+                {generating ? 'Menganalisis kinerja tim...' : `Generate Summary (${selectedIds.size} anggota)`}
               </button>
             </div>
           )}
@@ -163,7 +262,11 @@ export default function BMSummary() {
           {aiResult && (
             <>
               <div className="flex justify-end">
-                <button onClick={handleGenerate} disabled={generating} className="btn-ghost !py-2 text-xs">
+                <button
+                  onClick={handleGenerate}
+                  disabled={generating || selectedIds.size === 0}
+                  className="btn-ghost !py-2 text-xs"
+                >
                   {generating ? <Spinner size={14} /> : <Bot size={14} />} Regenerate
                 </button>
               </div>
@@ -188,12 +291,12 @@ export default function BMSummary() {
                 </div>
               )}
 
-              {fwssList.map((fwss) => {
-                const s = matchSummary(fwss);
+              {displayMembers.map((member) => {
+                const s = matchSummary(member);
                 return (
-                  <div key={fwss.id} className="space-y-3">
+                  <div key={member.id} className="space-y-3">
                     <PersonSummaryCard
-                      name={fwss.name}
+                      name={`${member.name} (${member.role})`}
                       status={s?.performance_status}
                       summary={s?.summary}
                       highlights={s?.highlights}
@@ -202,23 +305,23 @@ export default function BMSummary() {
                       recLabel="Rekomendasi BM"
                     />
                     <div className="card">
-                      <label className="label">Notes BM untuk {fwss.name}</label>
+                      <label className="label">Notes BM untuk {member.name}</label>
                       <textarea
                         rows={3}
                         className="w-full px-3 py-2 text-sm resize-y"
-                        placeholder={`Strategi & arahan untuk ${fwss.name}`}
-                        value={notes[fwss.id] || ''}
-                        onChange={(e) => setNotes((n) => ({ ...n, [fwss.id]: e.target.value }))}
+                        placeholder={`Strategi & arahan untuk ${member.name}`}
+                        value={notes[member.id] || ''}
+                        onChange={(e) => setNotes((n) => ({ ...n, [member.id]: e.target.value }))}
                       />
                       <label className="label mt-3">Strategic Action Plan</label>
                       <ActionPlanEditor
-                        templates={ACTION_TEMPLATES([fwss.name])}
-                        value={actions[fwss.id] || []}
-                        onChange={(v) => setActions((a) => ({ ...a, [fwss.id]: v }))}
+                        templates={ACTION_TEMPLATES([member.name])}
+                        value={actions[member.id] || []}
+                        onChange={(v) => setActions((a) => ({ ...a, [member.id]: v }))}
                       />
-                      <button onClick={() => handleSave(fwss.id)} disabled={saving} className="btn-teal w-full mt-3">
-                        {savedFor[fwss.id] ? <CheckCircle2 size={16} /> : <Save size={16} />}
-                        {savedFor[fwss.id] ? 'Tersimpan ✓' : 'Simpan Notes & Action Plan'}
+                      <button onClick={() => handleSave(member.id)} disabled={saving} className="btn-teal w-full mt-3">
+                        {savedFor[member.id] ? <CheckCircle2 size={16} /> : <Save size={16} />}
+                        {savedFor[member.id] ? 'Tersimpan ✓' : 'Simpan Notes & Action Plan'}
                       </button>
                     </div>
                   </div>

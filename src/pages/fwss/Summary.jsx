@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bot, Save, AlertTriangle, CheckCircle2, FolderClock } from 'lucide-react';
+import { Bot, Save, AlertTriangle, CheckCircle2, FolderClock, Check } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import Layout from '../../components/Layout';
 import { FullSpinner, ErrorBox, Spinner } from '../../components/ui';
 import { PersonSummaryCard, ActionPlanEditor } from '../../components/summary';
 import {
-  fetchSubordinates,
+  fetchAllUsers,
   fetchWeeklyPlan,
   fetchDailyActivity,
   fetchScore,
@@ -16,15 +16,18 @@ import {
 } from '../../lib/db';
 import { summarizeForFwss } from '../../lib/ai';
 import { slotsForRole } from '../../constants/timeSlots';
-import { todayISO, currentWeekId, weekdayDatesOf, nowDate, statusFromLevel } from '../../lib/utils';
+import { todayISO, currentWeekId, weekdayDatesOf, nowDate, statusFromLevel, clsx } from '../../lib/utils';
 
 const FWSS_SLOTS = slotsForRole('FWSS');
 const FWSS_TIME_OPTIONS = FWSS_SLOTS.map((s) => s.time);
 
-const ACTION_TEMPLATES = (faNames) => [
-  ...faNames.map((n) => `Coaching individual dengan ${n}`),
+// Role-role yang bisa dipilih FWSS untuk di-summary
+const SUMMARY_ROLES = ['FA', 'BM'];
+
+const ACTION_TEMPLATES = (memberNames) => [
+  ...memberNames.map((n) => `Coaching individual dengan ${n}`),
   'Joint meeting / assisted selling',
-  'Follow-up pipeline bersama FA',
+  'Follow-up pipeline bersama tim',
   'Eskalasi ke BM',
 ];
 
@@ -32,14 +35,14 @@ export default function FWSSSummary() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const scheduleDateOptions = weekdayDatesOf(nowDate()).filter((d) => d.value >= todayISO());
-  const [fas, setFas] = useState([]);
+  const [members, setMembers] = useState([]);      // FA + BM semua
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [aiResult, setAiResult] = useState(null);
 
-  // notes & action plan per FA target
   const [notes, setNotes] = useState({});
   const [actions, setActions] = useState({});
   const [savedFor, setSavedFor] = useState({});
@@ -47,18 +50,20 @@ export default function FWSSSummary() {
   useEffect(() => {
     (async () => {
       try {
-        const subs = await fetchSubordinates(user.id);
-        setFas(subs);
-        // muat summary tersimpan sebelumnya (jika ada)
+        const allUsers = await fetchAllUsers();
+        const eligible = allUsers.filter((u) => SUMMARY_ROLES.includes(u.role));
+        setMembers(eligible);
+        setSelectedIds(new Set());
+
         const existing = await Promise.all(
-          subs.map((fa) => fetchSummaryFor({ supervisorId: user.id, targetUserId: fa.id }))
+          eligible.map((m) => fetchSummaryFor({ supervisorId: user.id, targetUserId: m.id }))
         );
         const n = {}, a = {};
         let savedData = null;
         existing.forEach((row, i) => {
           if (row) {
-            n[subs[i].id] = row.supervisor_notes || '';
-            a[subs[i].id] = row.action_plans || [];
+            n[eligible[i].id] = row.supervisor_notes || '';
+            a[eligible[i].id] = row.action_plans || [];
             if (row.summary_data) savedData = row.summary_data;
           }
         });
@@ -73,20 +78,34 @@ export default function FWSSSummary() {
     })();
   }, [user.id]);
 
+  function toggle(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll() { setSelectedIds(new Set(members.map((m) => m.id))); }
+  function clearAll() { setSelectedIds(new Set()); }
+
   async function handleGenerate() {
     setGenerating(true);
     setError('');
     try {
+      const targets = members.filter((m) => selectedIds.has(m.id));
       const faData = await Promise.all(
-        fas.map(async (fa) => {
+        targets.map(async (m) => {
           const [plan, activity, score] = await Promise.all([
-            fetchWeeklyPlan(fa.id, currentWeekId()),
-            fetchDailyActivity(fa.id, todayISO()),
-            fetchScore(fa.id, todayISO()),
+            fetchWeeklyPlan(m.id, currentWeekId()),
+            fetchDailyActivity(m.id, todayISO()),
+            fetchScore(m.id, todayISO()),
           ]);
           return {
-            id: fa.id,
-            name: fa.name,
+            id: m.id,
+            name: m.name,
+            role: m.role,
             weeklyPlan: plan?.slots || null,
             activities: activity?.activities || null,
             score: score
@@ -96,9 +115,8 @@ export default function FWSSSummary() {
         })
       );
       const result = await summarizeForFwss({ faData });
-      // Audit: paksa performance_status sesuai daily_level nyata tiap FA.
-      const levelById = Object.fromEntries(faData.map((fa) => [fa.id, fa.score?.daily_level ?? null]));
-      const nameById = Object.fromEntries(faData.map((fa) => [fa.id, fa.name]));
+      const levelById = Object.fromEntries(faData.map((m) => [m.id, m.score?.daily_level ?? null]));
+      const nameById = Object.fromEntries(faData.map((m) => [m.id, m.name]));
       (result?.fa_summaries || []).forEach((s) => {
         const id = s.fa_id || Object.keys(nameById).find((k) => nameById[k] === s.fa_name);
         if (id && id in levelById) s.performance_status = statusFromLevel(levelById[id]);
@@ -111,15 +129,14 @@ export default function FWSSSummary() {
     }
   }
 
-  async function handleSave(faId) {
+  async function handleSave(memberId) {
     setSaving(true);
     setError('');
     try {
-      const fa = fas.find((x) => x.id === faId);
-      const faSummary = aiResult?.fa_summaries?.find((f) => f.fa_id === faId || f.fa_name === fa?.name);
+      const member = members.find((x) => x.id === memberId);
+      const mSummary = aiResult?.fa_summaries?.find((f) => f.fa_id === memberId || f.fa_name === member?.name);
 
-      // Aksi yang dijadwalkan & belum diinjeksi → buat extra_plan di agenda FWSS sendiri.
-      const items = actions[faId] || [];
+      const items = actions[memberId] || [];
       const updatedItems = [];
       for (const item of items) {
         if (item.schedule?.date && item.schedule?.time && !item.schedule.extra_plan_id) {
@@ -131,7 +148,7 @@ export default function FWSSSummary() {
             time: item.schedule.time,
             endTime: slot?.endTime || null,
             label: item.label,
-            data: fa ? { target_fa: fa.name } : {},
+            data: member ? { target_fa: member.name } : {},
             source: 'fwss_action',
           });
           updatedItems.push({ ...item, schedule: { ...item.schedule, extra_plan_id: row.id } });
@@ -142,15 +159,15 @@ export default function FWSSSummary() {
 
       await upsertSummary({
         supervisorId: user.id,
-        targetUserId: faId,
-        aiSummary: faSummary?.summary || null,
+        targetUserId: memberId,
+        aiSummary: mSummary?.summary || null,
         summaryData: aiResult,
-        supervisorNotes: notes[faId] || '',
+        supervisorNotes: notes[memberId] || '',
         actionPlans: updatedItems,
       });
-      setActions((a) => ({ ...a, [faId]: updatedItems }));
-      setSavedFor((s) => ({ ...s, [faId]: true }));
-      setTimeout(() => setSavedFor((s) => ({ ...s, [faId]: false })), 2500);
+      setActions((a) => ({ ...a, [memberId]: updatedItems }));
+      setSavedFor((s) => ({ ...s, [memberId]: true }));
+      setTimeout(() => setSavedFor((s) => ({ ...s, [memberId]: false })), 2500);
     } catch (e) {
       setError(e.message || 'Gagal menyimpan.');
     } finally {
@@ -158,14 +175,22 @@ export default function FWSSSummary() {
     }
   }
 
-  function matchSummary(fa) {
-    return aiResult?.fa_summaries?.find((s) => s.fa_id === fa.id || s.fa_name === fa.name);
+  function matchSummary(member) {
+    return aiResult?.fa_summaries?.find((s) => s.fa_id === member.id || s.fa_name === member.name);
   }
 
+  // Grup member berdasarkan role untuk UI
+  const membersByRole = SUMMARY_ROLES.reduce((acc, role) => {
+    acc[role] = members.filter((m) => m.role === role);
+    return acc;
+  }, {});
+
+  const displayMembers = members.filter((m) => selectedIds.has(m.id));
+
   return (
-    <Layout title="Summary FA" back="/dashboard/fwss">
+    <Layout title="Summary Tim" back="/dashboard/fwss">
       {loading ? (
-        <FullSpinner label="Memuat data FA..." />
+        <FullSpinner label="Memuat data tim..." />
       ) : (
         <div className="space-y-4">
           {error && <ErrorBox>{error}</ErrorBox>}
@@ -176,28 +201,73 @@ export default function FWSSSummary() {
             </button>
           </div>
 
-          {fas.length === 0 && (
-            <div className="card border-score-2/40 bg-score-2/10 text-center py-6">
-              <p className="text-sm font-semibold text-score-2 mb-1">Belum ada FA terdeteksi</p>
-              <p className="text-xs text-text-secondary leading-relaxed mb-3 max-w-sm mx-auto">
-                Pastikan FA Anda sudah mendaftar dan memilih Anda sebagai atasan (FWSS) saat onboarding.
-                Anda juga dapat memperbarui profil untuk memastikan data Anda benar.
-              </p>
-              <button onClick={() => navigate('/onboarding')} className="btn-ghost !py-1.5 text-xs mx-auto">
-                Perbarui Profil Saya
-              </button>
+          {/* Pilih anggota yang akan di-summary */}
+          {members.length > 0 && (
+            <div className="card space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Pilih Anggota untuk Di-Summary</p>
+                <div className="flex gap-2">
+                  <button onClick={selectAll} className="text-xs text-hana-teal-700 hover:underline">
+                    Pilih Semua
+                  </button>
+                  <span className="text-text-muted">·</span>
+                  <button onClick={clearAll} className="text-xs text-text-secondary hover:underline">
+                    Batalkan Semua
+                  </button>
+                </div>
+              </div>
+              {SUMMARY_ROLES.map((role) => {
+                const group = membersByRole[role] || [];
+                if (group.length === 0) return null;
+                return (
+                  <div key={role}>
+                    <p className="text-xs font-medium text-text-muted mb-1.5">{role}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {group.map((m) => {
+                        const active = selectedIds.has(m.id);
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => toggle(m.id)}
+                            className={clsx(
+                              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors',
+                              active
+                                ? 'bg-hana-teal-500 text-white border-hana-teal-500'
+                                : 'bg-white text-text-secondary border-hana-border hover:border-hana-teal-400'
+                            )}
+                          >
+                            {active && <Check size={11} />}
+                            {m.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          {fas.length > 0 && !aiResult && (
+          {members.length === 0 && (
+            <div className="card text-center py-6">
+              <p className="text-sm text-text-muted">Belum ada anggota tim terdaftar di sistem.</p>
+            </div>
+          )}
+
+          {members.length > 0 && !aiResult && (
             <div className="card text-center py-8">
               <Bot size={36} className="text-hana-teal-700 mx-auto mb-3" />
               <p className="text-sm text-text-secondary mb-4">
-                Generate ringkasan kinerja {fas.length} FA hari ini dengan bantuan AI.
+                Generate ringkasan kinerja {selectedIds.size} anggota yang dipilih hari ini dengan bantuan AI.
               </p>
-              <button onClick={handleGenerate} disabled={generating} className="btn-teal mx-auto">
+              <button
+                onClick={handleGenerate}
+                disabled={generating || selectedIds.size === 0}
+                className="btn-teal mx-auto"
+              >
                 {generating ? <Spinner size={18} className="text-white" /> : <Bot size={18} />}
-                {generating ? 'Sedang menganalisis data FA...' : 'Generate Summary FA'}
+                {generating ? 'Sedang menganalisis data...' : `Generate Summary (${selectedIds.size} anggota)`}
               </button>
             </div>
           )}
@@ -205,7 +275,11 @@ export default function FWSSSummary() {
           {aiResult && (
             <>
               <div className="flex justify-end">
-                <button onClick={handleGenerate} disabled={generating} className="btn-ghost !py-2 text-xs">
+                <button
+                  onClick={handleGenerate}
+                  disabled={generating || selectedIds.size === 0}
+                  className="btn-ghost !py-2 text-xs"
+                >
                   {generating ? <Spinner size={14} /> : <Bot size={14} />} Regenerate
                 </button>
               </div>
@@ -230,40 +304,40 @@ export default function FWSSSummary() {
                 </div>
               )}
 
-              {fas.map((fa) => {
-                const s = matchSummary(fa);
+              {displayMembers.map((member) => {
+                const s = matchSummary(member);
                 return (
-                  <div key={fa.id} className="space-y-3">
+                  <div key={member.id} className="space-y-3">
                     <PersonSummaryCard
-                      name={fa.name}
+                      name={`${member.name} (${member.role})`}
                       status={s?.performance_status}
                       summary={s?.summary}
                       highlights={s?.highlights}
                       risks={s?.risks}
                       recommendations={s?.fwss_recommendations}
-                      recLabel="Rekomendasi FWSS"
+                      recLabel="Rekomendasi"
                     />
                     <div className="card">
-                      <label className="label">Notes FWSS untuk {fa.name}</label>
+                      <label className="label">Notes untuk {member.name}</label>
                       <textarea
                         rows={3}
                         className="w-full px-3 py-2 text-sm resize-y"
-                        placeholder={`Apa yang akan Anda lakukan untuk ${fa.name}?`}
-                        value={notes[fa.id] || ''}
-                        onChange={(e) => setNotes((n) => ({ ...n, [fa.id]: e.target.value }))}
+                        placeholder={`Apa yang akan Anda lakukan untuk ${member.name}?`}
+                        value={notes[member.id] || ''}
+                        onChange={(e) => setNotes((n) => ({ ...n, [member.id]: e.target.value }))}
                       />
                       <label className="label mt-3">Action Plan</label>
                       <ActionPlanEditor
-                        templates={ACTION_TEMPLATES([fa.name])}
-                        value={actions[fa.id] || []}
-                        onChange={(v) => setActions((a) => ({ ...a, [fa.id]: v }))}
+                        templates={ACTION_TEMPLATES([member.name])}
+                        value={actions[member.id] || []}
+                        onChange={(v) => setActions((a) => ({ ...a, [member.id]: v }))}
                         scheduleEnabled
                         dateOptions={scheduleDateOptions}
                         timeOptions={FWSS_TIME_OPTIONS}
                       />
-                      <button onClick={() => handleSave(fa.id)} disabled={saving} className="btn-teal w-full mt-3">
-                        {savedFor[fa.id] ? <CheckCircle2 size={16} /> : <Save size={16} />}
-                        {savedFor[fa.id] ? 'Tersimpan ✓' : 'Simpan Notes & Action Plan'}
+                      <button onClick={() => handleSave(member.id)} disabled={saving} className="btn-teal w-full mt-3">
+                        {savedFor[member.id] ? <CheckCircle2 size={16} /> : <Save size={16} />}
+                        {savedFor[member.id] ? 'Tersimpan ✓' : 'Simpan Notes & Action Plan'}
                       </button>
                     </div>
                   </div>

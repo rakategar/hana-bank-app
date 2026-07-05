@@ -3,6 +3,14 @@ import { DEFAULT_DURATION, MAX_DURATION } from './appMode';
 // Re-export agar konsumen lama (import dari utils) tetap berfungsi.
 export { DEFAULT_DURATION, MAX_DURATION };
 
+// ── Feature flags via ENV ─────────────────────────────────
+export function isWeeklyPlanAlwaysOpen() {
+  return import.meta.env.VITE_WEEKLY_PLAN_ALWAYS_OPEN === 'yes';
+}
+export function isDailyInputGraceEnabled() {
+  return import.meta.env.VITE_DAILY_INPUT_GRACE === 'yes';
+}
+
 // ── Demo clock (hanya aktif di mode demo) ─────────────────
 // State modul agar helper tanggal/waktu bisa mengikuti waktu demo.
 // Di mode live, setDemoNow tidak pernah dipanggil → nowDate() = waktu nyata.
@@ -138,14 +146,26 @@ export function dayKeyFromDate(date = nowDate()) {
   return WEEKDAYS.find((w) => w.dow === dow)?.key || null;
 }
 
-// Weekly Plan hanya dibuka pada tanggal peluncuran 5–7 Juni 2026, lalu tiap Jumat.
-// Di luar itu, halaman rencana tertutup (read-only). Memakai nowDate() → demo clock
-// dapat mensimulasikan hari buka saat presentasi.
-export const WEEKLY_PLAN_SPECIAL_DATES = ['2026-06-05', '2026-06-06', '2026-06-07', '2026-06-08'];
+// Weekly Plan dibuka setiap Jumat. Tanggal 8 Juni 2026 (Senin peluncuran) adalah
+// satu-satunya pengecualian agar tim bisa mengisi rencana minggu pertama (8–12 Jun).
+export const WEEKLY_PLAN_SPECIAL_DATES = [
+  '2026-06-08', '2026-06-09', '2026-06-10',
+  '2026-06-11', '2026-06-12', '2026-06-13', '2026-06-14',
+];
 export function isWeeklyPlanOpen(date = nowDate()) {
-  const iso = formatDateISO(date);
-  if (WEEKLY_PLAN_SPECIAL_DATES.includes(iso)) return true;
+  if (isWeeklyPlanAlwaysOpen()) return true;
+  if (WEEKLY_PLAN_SPECIAL_DATES.includes(formatDateISO(date))) return true;
   return new Date(date).getDay() === 5; // Jumat
+}
+
+// Tanggal 7 hari ke belakang dari `date` (untuk akses minggu lalu)
+export function prevWeekDate(date = nowDate()) {
+  const d = new Date(date);
+  d.setDate(d.getDate() - 7);
+  return d;
+}
+export function prevWeekId(date = nowDate()) {
+  return currentWeekId(prevWeekDate(date));
 }
 
 // Tanggal 7 hari ke depan dari `date` (untuk perencanaan minggu depan)
@@ -159,6 +179,72 @@ export function nextWeekDate(date = nowDate()) {
 export function nextWeekId(date = nowDate()) {
   return currentWeekId(nextWeekDate(date));
 }
+
+// Week ID yang menjadi target input weekly plan saat planOpen = true.
+// Jumat → minggu depan (perencanaan ke depan).
+// Senin–Kamis special dates → minggu ini (kita sudah berada di dalam minggu target).
+export function weeklyPlanTargetWeekId(date = nowDate()) {
+  const dow = new Date(date).getDay(); // 5 = Jumat
+  return dow === 5 ? nextWeekId(date) : currentWeekId(date);
+}
+
+// weekdayDatesOf untuk minggu target weekly plan.
+export function weeklyPlanTargetDates(date = nowDate()) {
+  const dow = new Date(date).getDay();
+  return dow === 5 ? weekdayDatesOf(nextWeekDate(date)) : weekdayDatesOf(date);
+}
+
+// Konversi weekId (mis. "2026-W24") → Date objek Senin minggu tersebut.
+function getMondayFromWeekId(weekId) {
+  const [year, week] = weekId.split('-W').map(Number);
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dayNum = jan4.getUTCDay() || 7;
+  const monday = new Date(jan4);
+  monday.setUTCDate(jan4.getUTCDate() - dayNum + 1 + (week - 1) * 7);
+  return monday;
+}
+
+// weekdayDatesOf untuk weekId tertentu (bukan hanya minggu sekarang).
+export function weeklyPlanTargetDatesFor(weekId) {
+  return weekdayDatesOf(getMondayFromWeekId(weekId));
+}
+
+// Tanggal-tanggal ketika KEDUA minggu (sekarang & depan) bisa diedit sekaligus.
+const WEEKLY_PLAN_MULTI_WEEK_DATES = ['2026-06-11', '2026-06-12', '2026-06-13', '2026-06-14'];
+
+// Kembalikan array weekId yang bisa diedit pada hari tertentu.
+// always_open: 3 elemen [prev, current, next]; special dates: 2 elemen; normal: 1 elemen.
+export function weeklyPlanEditableWeeks(date = nowDate()) {
+  if (isWeeklyPlanAlwaysOpen()) {
+    return [prevWeekId(date), currentWeekId(date), nextWeekId(date)];
+  }
+  const iso = formatDateISO(date);
+  if (WEEKLY_PLAN_MULTI_WEEK_DATES.includes(iso)) {
+    return [currentWeekId(date), nextWeekId(date)];
+  }
+  return [weeklyPlanTargetWeekId(date)];
+}
+
+// Semua hari kerja dalam minggu produktif yang sama yang tanggalnya < today.
+// Dipakai DailyInput saat VITE_DAILY_INPUT_GRACE=yes.
+export function getDailyInputGraceDates(today = nowDate()) {
+  if (!isDailyInputGraceEnabled()) return [];
+  const todayStr = formatDateISO(today);
+  return workWeekDates(today).filter((d) => d < todayStr);
+}
+
+// Mon-Fri ISO date strings untuk minggu yang mengandung `date`.
+export function workWeekDates(date = nowDate()) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() - dayNum + 1);
+  return Array.from({ length: 5 }, (_, i) => {
+    const day = new Date(d);
+    day.setUTCDate(d.getUTCDate() + i);
+    return formatDateISO(day);
+  });
+}
+
 export function dayLabel(key) {
   return WEEKDAYS.find((w) => w.key === key)?.label || key;
 }
@@ -297,4 +383,15 @@ export function debounce(fn, ms = 300) {
 
 export function clsx(...args) {
   return args.filter(Boolean).join(' ');
+}
+
+// crypto.randomUUID() hanya tersedia di HTTPS — fallback untuk HTTP/dev
+export function genUUID() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
 }
