@@ -1,8 +1,31 @@
-import { supabase } from './supabase';
+import { supabase, STORAGE_BUCKET } from './supabase';
 import { todayISO, currentWeekId } from './utils';
 import { slotsForRole } from '../constants/timeSlots';
+import { getDeviceInfo } from './device';
 
 // ── RH LOGIN (USERNAME/PASSWORD) ─────────────────────────
+
+export async function validateManualLogin(username, password) {
+  const { data, error } = await supabase
+    .from('rh_credentials')
+    .select('*')
+    .eq('username', username.toLowerCase().trim())
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) throw new Error('Username atau password salah.');
+  if (data.password !== password) throw new Error('Username atau password salah.');
+
+  const { data: user, error: userError } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', data.user_id)
+    .single();
+  if (userError || !user) throw new Error('User tidak ditemukan.');
+  if (user.role === 'RH') throw new Error('Akun RH silakan login melalui halaman khusus RH.');
+
+  return user;
+}
 
 export async function validateRHLogin(username, password) {
   try {
@@ -122,29 +145,52 @@ export async function fetchUsersByRole(role) {
 }
 
 // Buat / perbarui profil user (dipakai di onboarding). id = Clerk user id.
-export async function upsertUserProfile({ id, name, role, branch, supervisorId }) {
-  const payload = {
-    id,
-    name,
-    role,
-    branch: branch || null,
-    supervisor_id: supervisorId || null,
-  };
+// Ambil semua supervisor user ini (dari junction table user_supervisors).
+export async function fetchSupervisors(userId) {
+  const { data, error } = await supabase
+    .from('user_supervisors')
+    .select('supervisor_id')
+    .eq('user_id', userId);
+  if (error) throw error;
+  if (!data || data.length === 0) return [];
+  const ids = data.map((r) => r.supervisor_id);
+  const { data: users, error: e2 } = await supabase.from('users').select('*').in('id', ids);
+  if (e2) throw e2;
+  return users || [];
+}
+
+// Replace all supervisors for a user atomically (DELETE + INSERT).
+export async function setSupervisors(userId, supervisorIds) {
+  const { error: delErr } = await supabase
+    .from('user_supervisors')
+    .delete()
+    .eq('user_id', userId);
+  if (delErr) throw delErr;
+  if (!supervisorIds || supervisorIds.length === 0) return;
+  const rows = supervisorIds.map((sid) => ({ user_id: userId, supervisor_id: sid }));
+  const { error: insErr } = await supabase.from('user_supervisors').insert(rows);
+  if (insErr) throw insErr;
+}
+
+export async function upsertUserProfile({ id, name, role, branch, supervisorIds }) {
+  const payload = { id, name, role, branch: branch || null };
   const { data, error } = await supabase
     .from('users')
     .upsert(payload, { onConflict: 'id' })
     .select()
     .single();
   if (error) throw error;
+  if (supervisorIds !== undefined) {
+    await setSupervisors(id, supervisorIds || []);
+  }
   return data;
 }
 
-export async function updateUser(userId, { name, role, branch, supervisorId }) {
+export async function updateUser(userId, { name, role, branch, supervisorIds }) {
   const payload = {};
   if (name !== undefined) payload.name = name;
   if (role !== undefined) payload.role = role;
   if (branch !== undefined) payload.branch = branch || null;
-  if (supervisorId !== undefined) payload.supervisor_id = supervisorId || null;
   const { data, error } = await supabase
     .from('users')
     .update(payload)
@@ -152,6 +198,9 @@ export async function updateUser(userId, { name, role, branch, supervisorId }) {
     .select()
     .single();
   if (error) throw error;
+  if (supervisorIds !== undefined) {
+    await setSupervisors(userId, supervisorIds || []);
+  }
   return data;
 }
 
@@ -165,7 +214,20 @@ export async function deleteUser(userId) {
   await supabase.from('extra_plans').delete().eq('user_id', userId);
   await supabase.from('daily_activities').delete().eq('user_id', userId);
   await supabase.from('weekly_plans').delete().eq('user_id', userId);
-  // Null-out supervisor_id subordinat yang lapor ke user ini
+  // Hapus bukti gambar (metadata + blob storage) sebelum hapus user
+  const { data: imgs } = await supabase
+    .from('activity_images')
+    .select('storage_path')
+    .eq('user_id', userId);
+  const paths = (imgs || []).map((r) => r.storage_path).filter(Boolean);
+  if (paths.length) {
+    // best-effort; kegagalan storage tidak boleh memblok hapus user
+    try { await supabase.storage.from(STORAGE_BUCKET).remove(paths); } catch (_) { /* abaikan */ }
+  }
+  await supabase.from('activity_images').delete().eq('user_id', userId);
+  // Hapus dari junction table (sebagai user maupun sebagai supervisor)
+  await supabase.from('user_supervisors').delete().eq('supervisor_id', userId);
+  // Legacy: null-out supervisor_id subordinat yang masih memakai kolom lama
   await supabase.from('users').update({ supervisor_id: null }).eq('supervisor_id', userId);
   const { error } = await supabase.from('users').delete().eq('id', userId);
   if (error) throw error;
@@ -173,11 +235,15 @@ export async function deleteUser(userId) {
 
 export async function fetchSubordinates(supervisorId) {
   const { data, error } = await supabase
-    .from('users')
-    .select('*')
+    .from('user_supervisors')
+    .select('user_id')
     .eq('supervisor_id', supervisorId);
   if (error) throw error;
-  return data || [];
+  if (!data || data.length === 0) return [];
+  const ids = data.map((r) => r.user_id);
+  const { data: users, error: e2 } = await supabase.from('users').select('*').in('id', ids);
+  if (e2) throw e2;
+  return users || [];
 }
 
 // ── WEEKLY PLANS ──────────────────────────────────────────
@@ -487,10 +553,11 @@ export async function fetchWarningsFrom(fromId) {
   return data || [];
 }
 
-export async function sendWarnings({ fromId, toIds, title, message }) {
+export async function sendWarnings({ fromId, toIds, title, message, actorId, actorRole }) {
   const rows = toIds.map((to) => ({ from_id: fromId, to_id: to, title, message }));
   const { data, error } = await supabase.from('warnings').insert(rows).select();
   if (error) throw error;
+  logActivity({ userId: actorId ?? fromId, role: actorRole, action: 'warning_sent', metadata: { to_count: toIds.length } });
   return data;
 }
 
@@ -500,6 +567,23 @@ export async function markWarningRead(warningId) {
     .update({ is_read: true, read_at: new Date().toISOString() })
     .eq('id', warningId);
   if (error) throw error;
+}
+
+// ── AUDIT LOG ─────────────────────────────────────────────
+
+export async function logActivity({ userId, role, action, entityDate, entityId, metadata }) {
+  try {
+    const device = getDeviceInfo();
+    await supabase.from('activity_audit_log').insert({
+      user_id: userId ?? null,
+      role: role ?? null,
+      action,
+      entity_date: entityDate ?? null,
+      entity_id: entityId ? String(entityId) : null,
+      ...device,
+      metadata: metadata ?? {},
+    });
+  } catch (_) { /* audit jangan pernah merusak main flow */ }
 }
 
 // ── COMPOSITE: data hari ini untuk satu user ──────────────

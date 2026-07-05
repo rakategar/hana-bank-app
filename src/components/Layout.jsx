@@ -3,10 +3,14 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LogOut, ChevronLeft, Bell, Menu, X,
   LayoutDashboard, ClipboardList, PencilLine, Bot, FolderClock, UserCog,
+  Download, Smartphone,
 } from 'lucide-react';
+import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import { useAuth } from '../contexts/AuthContext';
 import { getRHSession, clearRHSession } from '../lib/rhSession';
 import { initials, ROLE_LABELS, clsx } from '../lib/utils';
+import { IS_DEMO } from '../lib/appMode';
+import DemoClock from './DemoClock';
 import logo from '/hana-bank-logo.png';
 
 function navForRole(role) {
@@ -16,16 +20,70 @@ function navForRole(role) {
   }
   const items = [
     dash,
-    { to: '/weekly-plan', label: 'Rencana Mingguan', icon: ClipboardList },
+    ...(role === 'FA' ? [{ to: '/weekly-plan', label: 'Rencana Mingguan', icon: ClipboardList }] : []),
     { to: '/daily-input', label: 'Input Aktivitas', icon: PencilLine },
   ];
   if (role === 'FWSS') {
     items.push({ to: '/summary/fwss', label: 'Summary FA', icon: Bot });
     items.push({ to: '/notes-archive', label: 'Arsip Catatan', icon: FolderClock });
   }
-  if (role === 'BM') items.push({ to: '/summary/bm', label: 'Summary Tim', icon: Bot });
+  if (role === 'BM') {
+    items.push({ to: '/summary/bm', label: 'Summary Tim', icon: Bot });
+    items.push({ to: '/notes-archive/bm', label: 'Arsip Catatan', icon: FolderClock });
+  }
   items.push({ to: '/onboarding', label: 'Perbarui Profil', icon: UserCog });
   return items;
+}
+
+function InstallButton() {
+  const { canInstall, isIos, triggerInstall, prompt, isStandalone } = useInstallPrompt();
+  const [showHint, setShowHint] = useState(false);
+
+  // Sudah terinstall sebagai PWA — sembunyikan
+  if (isStandalone) return null;
+
+  // iOS — tampilkan instruksi manual
+  if (isIos) {
+    return (
+      <div className="relative">
+        <button onClick={() => setShowHint((v) => !v)} className="nav-item w-full text-white/70">
+          <Smartphone size={18} /> Pasang Aplikasi
+        </button>
+        {showHint && (
+          <div className="absolute bottom-full left-0 right-0 mb-2 rounded-lg bg-white text-ink text-xs p-3 shadow-lg border border-hana-border leading-relaxed z-50">
+            <p className="font-semibold mb-1">Install di iPhone/iPad:</p>
+            <p>1. Tap ikon <b>Bagikan</b> (□↑) di Safari</p>
+            <p>2. Pilih <b>"Tambah ke Layar Utama"</b></p>
+            <p>3. Tap <b>Tambah</b></p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Chrome/Android — ada prompt langsung
+  if (prompt) {
+    return (
+      <button onClick={triggerInstall} className="nav-item w-full text-white/70">
+        <Download size={18} /> Pasang Aplikasi
+      </button>
+    );
+  }
+
+  // Desktop atau browser lain — tampilkan hint cara install manual
+  return (
+    <div className="relative">
+      <button onClick={() => setShowHint((v) => !v)} className="nav-item w-full text-white/70">
+        <Download size={18} /> Pasang Aplikasi
+      </button>
+      {showHint && (
+        <div className="absolute bottom-full left-0 right-0 mb-2 rounded-lg bg-white text-ink text-xs p-3 shadow-lg border border-hana-border leading-relaxed z-50">
+          <p className="font-semibold mb-1">Install di Chrome:</p>
+          <p>Klik ikon <b>⊕</b> di address bar browser, lalu pilih <b>"Instal"</b>.</p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Sidebar({ user, items, current, onNavigate, onLogout }) {
@@ -61,6 +119,7 @@ function Sidebar({ user, items, current, onNavigate, onLogout }) {
             <p className="text-[10px] text-white/60 truncate">{ROLE_LABELS[user.role]}</p>
           </div>
         </div>
+        <InstallButton />
         <button onClick={onLogout} className="nav-item w-full text-white/70">
           <LogOut size={18} /> Keluar
         </button>
@@ -131,6 +190,8 @@ export default function Layout({ children, title, back, unreadCount = 0 }) {
             <h1 className="font-display text-xl font-bold truncate flex-1">
               {title || 'Dashboard'}
             </h1>
+
+            {IS_DEMO && <DemoClock />}
 
             {unreadCount > 0 && (
               <div className="relative">

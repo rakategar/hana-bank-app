@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { TrendingUp, AlertTriangle, Lightbulb, Plus, X, CalendarClock, CheckCircle2 } from 'lucide-react';
-import { levelInfo, clsx } from '../lib/utils';
+import { levelInfo, clsx, genUUID } from '../lib/utils';
 
 const STATUS_TO_LEVEL = {
   critical: 'CRITICAL',
@@ -69,14 +69,14 @@ export function ActionPlanEditor({ templates, value, onChange, scheduleEnabled =
     if (exists) {
       onChange(value.filter((a) => a.label !== label));
     } else {
-      onChange([...value, { id: crypto.randomUUID(), type: 'template', label, is_completed: false }]);
+      onChange([...value, { id: genUUID(), type: 'template', label, is_completed: false }]);
     }
   }
 
   function addCustom() {
     const t = custom.trim();
     if (!t) return;
-    onChange([...value, { id: crypto.randomUUID(), type: 'custom', label: t, is_completed: false }]);
+    onChange([...value, { id: genUUID(), type: 'custom', label: t, is_completed: false }]);
     setCustom('');
   }
 

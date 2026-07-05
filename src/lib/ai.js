@@ -35,11 +35,13 @@ async function callClaude(prompt, { model = SUMMARY_MODEL, temperature = 0.3, ma
 }
 
 function parseJson(raw) {
+  // Strip code fence jika ada (```json ... ``` atau ``` ... ```)
+  const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
   try {
-    return JSON.parse(raw);
+    return JSON.parse(stripped);
   } catch {
-    // fallback: ambil blok JSON pertama (mis. bila terbungkus prosa/code fence)
-    const match = raw.match(/\{[\s\S]*\}/);
+    // fallback: ambil blok { ... } terluar
+    const match = stripped.match(/\{[\s\S]*\}/);
     if (match) {
       try {
         return JSON.parse(match[0]);
@@ -56,20 +58,30 @@ function parseJson(raw) {
 export async function scoreDailyActivities({ role, activities, usersById = null }) {
   const roleLabel = ROLE_LABELS[role] || role;
   const rubric = rubricToText(role);
+  const noWeeklyPlan = role === 'FWSS' || role === 'BM';
+
   const activitiesJSON = JSON.stringify(
-    activities.map((a) => ({
-      time: a.time,
-      label: a.label,
-      // planned & actual berisi data form terstruktur (di-serialize jadi teks ringkas).
-      // Fallback ke string lama bila slot belum memakai schema kontekstual.
-      planned: serializeStructuredData(a.planned_data, usersById) || a.planned || '',
-      actual: serializeStructuredData(a.actual_data, usersById) || a.actual || '',
-      status: a.activity_status || 'not_done',
-      notes: a.notes || '',
-    })),
+    activities.map((a) => {
+      const actual = serializeStructuredData(a.actual_data, usersById) || a.actual || '';
+      const base = {
+        time: a.time,
+        label: a.label,
+        actual,
+        status: a.activity_status || 'not_done',
+        notes: a.notes || '',
+      };
+      if (!noWeeklyPlan) {
+        base.planned = serializeStructuredData(a.planned_data, usersById) || a.planned || '';
+      }
+      return base;
+    }),
     null,
     2
   );
+
+  const scoringInstruction = noWeeklyPlan
+    ? `Tidak ada rencana mingguan sebagai acuan untuk role ini. Nilai kualitas eksekusi berdasarkan: (1) status penyelesaian (done/partial/not_done), (2) kedalaman dan intensitas aktivitas yang diisi pada field "actual", (3) kesesuaian dengan rubrik peran. Jika "actual" kosong atau "status" not_done, beri score rendah (1).`
+    : `Tiap aktivitas punya "planned" (rencana terstruktur yang disusun user sebelumnya) dan "actual" (eksekusi nyata). Bandingkan keduanya: semakin kecil gap antara rencana dan realisasi, semakin tinggi skor. Jika "actual" kosong atau "status" not_done, beri score rendah (1).`;
 
   const prompt = `Kamu adalah evaluator performa ICU Class Bank Hana. Role user: ${roleLabel} (${role}).
 
@@ -77,7 +89,7 @@ Rubrik scoring per aktivitas:
 
 ${rubric}
 
-Evaluasi aktivitas berikut secara objektif berdasarkan rubrik. Tiap aktivitas punya "planned" (rencana terstruktur yang disusun user sebelumnya) dan "actual" (eksekusi nyata). Bandingkan keduanya: semakin kecil gap antara rencana dan realisasi, semakin tinggi skor. Jika "actual" kosong atau "status" not_done, beri score rendah (1). Output HANYA JSON valid dengan struktur:
+Evaluasi aktivitas berikut secara objektif berdasarkan rubrik. ${scoringInstruction} Output HANYA JSON valid dengan struktur:
 {
   "scores": [{
     "time": "07:30",
@@ -107,15 +119,15 @@ export async function summarizeForFwss({ faData }) {
   const dataText = faData
     .map(
       (fa, i) =>
-        `Data FA ${i + 1} (id=${fa.id}, nama=${fa.name}):\n` +
+        `Data Anggota ${i + 1} (id=${fa.id}, nama=${fa.name}, role=${fa.role || 'FA'}):\n` +
         `- Weekly plan: ${JSON.stringify(fa.weeklyPlan || 'belum ada')}\n` +
         `- Aktivitas hari ini: ${JSON.stringify(fa.activities || 'belum ada')}\n` +
         `- AI scores (daily_level = level resmi): ${JSON.stringify(fa.score || 'belum dinilai')}`
     )
     .join('\n\n');
 
-  const prompt = `Kamu adalah asisten manajerial FWSS Bank Hana dalam program ICU Class.
-Buat ringkasan kinerja seluruh FA berikut dalam Bahasa Indonesia.
+  const prompt = `Kamu adalah asisten manajerial ICU Class Bank Hana.
+Buat ringkasan kinerja anggota tim yang dipilih berikut dalam Bahasa Indonesia.
 
 ATURAN AKURASI (WAJIB):
 - Pakai "fa_id" & "fa_name" PERSIS dari data (jangan mengubah/mengarang nama atau id).
@@ -123,8 +135,9 @@ ATURAN AKURASI (WAJIB):
   (CRITICAL→critical, RECOVERY→recovery, ON TRACK→on_track, HIGH IMPACT→high_impact).
 - Jika AI scores "belum dinilai" / aktivitas belum diisi: set performance_status "critical",
   summary cukup "Belum mengisi aktivitas hari ini", dan KOSONGKAN highlights (jangan mengarang prestasi).
+- Setiap anggota memiliki field "role" (FA, BM, dll) — sesuaikan konteks rekomendasi dengan rolenya.
 
-Data FA:
+Data Anggota Tim:
 ${dataText}
 
 Output HANYA JSON valid:
@@ -136,13 +149,13 @@ Output HANYA JSON valid:
     "summary": "max 150 kata",
     "highlights": ["max 3 poin positif (kosong bila belum ada data)"],
     "risks": ["max 3 poin risiko"],
-    "fwss_recommendations": ["max 3 tindakan konkret untuk FWSS"]
+    "fwss_recommendations": ["max 3 tindakan konkret sesuai role anggota"]
   }],
-  "team_overall": "ringkasan seluruh FA dalam 1 paragraf",
+  "team_overall": "ringkasan seluruh anggota dalam 1 paragraf",
   "urgent_actions": ["tindakan mendesak jika ada"]
 }`;
 
-  return callClaude(prompt, { model: SUMMARY_MODEL, temperature: 0.4, maxTokens: 3072 });
+  return callClaude(prompt, { model: SUMMARY_MODEL, temperature: 0.4, maxTokens: 8192 });
 }
 
 // ── 3. SUMMARY BM untuk tim ───────────────────────────────
@@ -151,15 +164,15 @@ export async function summarizeForBm({ fwssData }) {
   const dataText = fwssData
     .map(
       (f, i) =>
-        `Data FWSS ${i + 1} (id=${f.id}, nama=${f.name}):\n` +
+        `Data Anggota ${i + 1} (id=${f.id}, nama=${f.name}, role=${f.role || 'FWSS'}):\n` +
         `- Aktivitas & score sendiri (daily_level = level resmi): ${JSON.stringify(f.score || 'belum dinilai')}\n` +
-        `- Summary FWSS untuk FA: ${JSON.stringify(f.faSummary || 'belum ada')}\n` +
-        `- FA di bawahnya: ${JSON.stringify(f.faScores || [])}`
+        `- Summary tim di bawahnya: ${JSON.stringify(f.faSummary || 'belum ada')}\n` +
+        `- Anggota tim di bawahnya: ${JSON.stringify(f.faScores?.length ? f.faScores : 'tidak ada / tidak berlaku')}`
     )
     .join('\n\n');
 
-  const prompt = `Kamu adalah asisten manajerial Branch Manager Bank Hana dalam program ICU Class.
-Buat executive summary kinerja seluruh FWSS beserta FA mereka dalam Bahasa Indonesia.
+  const prompt = `Kamu adalah asisten manajerial ICU Class Bank Hana.
+Buat executive summary kinerja anggota tim yang dipilih beserta data FA mereka dalam Bahasa Indonesia.
 
 ATURAN AKURASI (WAJIB):
 - Pakai "fwss_id" & "fwss_name" PERSIS dari data.
@@ -167,8 +180,10 @@ ATURAN AKURASI (WAJIB):
   (CRITICAL→critical, RECOVERY→recovery, ON TRACK→on_track, HIGH IMPACT→high_impact).
 - Jika "belum dinilai": set performance_status "critical", summary "Belum mengisi aktivitas hari ini",
   dan KOSONGKAN highlights (jangan mengarang prestasi/angka).
+- Setiap anggota memiliki field "role" (FA, FWSS, dll) — sesuaikan konteks rekomendasi dengan rolenya.
+  Untuk FA: "anggota tim di bawahnya" tidak berlaku, fokus pada performa individualnya.
 
-Data:
+Data Anggota Tim:
 ${dataText}
 
 Output HANYA JSON valid:
@@ -186,39 +201,64 @@ Output HANYA JSON valid:
   "urgent_actions": ["tindakan mendesak jika ada"]
 }`;
 
-  return callClaude(prompt, { model: SUMMARY_MODEL, temperature: 0.4, maxTokens: 3072 });
+  return callClaude(prompt, { model: SUMMARY_MODEL, temperature: 0.4, maxTokens: 8192 });
 }
 
 // ── 4. SUMMARY RH keseluruhan ─────────────────────────────
 
 export async function summarizeForRh({ allData }) {
+  const dateRange = allData.date_range || 'hari ini';
+  const isRange = allData.date_range && allData.date_range.includes('–');
+
+  // Hapus stats.ranking dari facts — sudah ada di ranking, jangan duplikat payload
+  const { ranking: _dropped, ...statsWithoutRanking } = allData.stats || {};
   const facts = {
+    periode: dateRange,
     ranking: allData.ranking || [],
-    stats: allData.stats || null,
-    team: allData.team || [],
+    stats: statsWithoutRanking,
+    // team berisi skor rata-rata per individu selama periode + info kehadiran data
+    team: (allData.team || []).map((u) => ({
+      user_id: u.user_id,
+      name: u.name,
+      role: u.role,
+      branch: u.branch || null,
+      rata_rata_skor: u.daily_average,
+      level: u.daily_level || null,
+      hari_ada_data: u.scored_days ?? null,
+      total_hari_kerja: u.total_days ?? null,
+      // Batasi 400 karakter agar prompt tidak membengkak untuk range multi-hari
+      ringkasan_gabungan: u.summary ? u.summary.slice(0, 400) : null,
+    })),
     bm_summary: allData.bm_summary || null,
   };
 
+  const periodeLabel = isRange
+    ? `periode ${dateRange}`
+    : `hari ${dateRange}`;
+
   const prompt = `Kamu adalah asisten eksekutif Regional Head Bank Hana dalam program ICU Class.
-Buat executive summary kinerja seluruh tim hari ini dalam Bahasa Indonesia eksekutif.
+Buat executive summary kinerja seluruh tim untuk ${periodeLabel} dalam Bahasa Indonesia eksekutif.
 
 ATURAN AKURASI (WAJIB, jangan dilanggar):
 - Gunakan angka HANYA dari blok FAKTA di bawah. JANGAN menghitung ulang atau mengarang skor.
 - "performance_ranking" SALIN PERSIS dari FAKTA.ranking (rank, user_id, name, role, score, level apa adanya).
-- User dengan score null / has_score=false BELUM mengisi/dinilai aktivitas: sebut sebagai
+- Skor yang tersedia adalah RATA-RATA seluruh hari kerja dalam periode (bukan satu hari).
+- "hari_ada_data" = berapa hari user tersebut memiliki data dalam periode. Sebutkan ini jika ada ketidakhadiran data.
+- User dengan rata_rata_skor null BELUM mengisi aktivitas sama sekali selama periode: sebut
   "belum ada data", JANGAN memberi skor atau menilai performanya seolah ada angka.
 - "requires_warning_letter" HANYA boleh berisi user_id yang di FAKTA.ranking ber-level
   CRITICAL atau RECOVERY (dan has_score=true). Jika tidak ada, kembalikan array kosong.
 - "risk_flags" HANYA untuk user_id/nama yang ADA di FAKTA. Jangan menambah orang lain.
 - "team_overall_status" cerminkan rata-rata tim (FAKTA.stats.average) & distribusi level.
-- "executive_summary" boleh menyebut FAKTA.stats.average, jumlah per level, dan jumlah belum mengisi.
+- "executive_summary" wajib menyebut periode (${dateRange}), FAKTA.stats.average, distribusi level,
+  dan jumlah hari tanpa data jika ada.
 
 FAKTA (otoritatif):
 ${JSON.stringify(facts, null, 2)}
 
 Output HANYA JSON valid:
 {
-  "executive_summary": "max 200 kata, high-level, mengacu angka FAKTA",
+  "executive_summary": "max 250 kata, high-level, mengacu FAKTA termasuk periode",
   "team_overall_status": "critical|recovery|on_track|high_impact",
   "performance_ranking": [
     {"rank": 1, "user_id": "", "name": "", "role": "", "score": 0, "level": ""}
@@ -226,9 +266,9 @@ Output HANYA JSON valid:
   "risk_flags": [
     {"user_id": "", "name": "", "issue": "", "urgency": "high|medium|low"}
   ],
-  "strategic_recommendations": ["max 3 rekomendasi strategis konkret"],
+  "strategic_recommendations": ["max 3 rekomendasi strategis konkret untuk periode ini"],
   "requires_warning_letter": ["user_id (hanya level CRITICAL/RECOVERY dari FAKTA)"]
 }`;
 
-  return callClaude(prompt, { model: SUMMARY_MODEL, temperature: 0.3, maxTokens: 3072 });
+  return callClaude(prompt, { model: SUMMARY_MODEL, temperature: 0.3, maxTokens: 8192 });
 }

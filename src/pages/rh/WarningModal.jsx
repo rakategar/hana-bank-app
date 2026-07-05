@@ -26,7 +26,7 @@ export default function WarningModal({ open, onClose, users, preselect = [], onS
     if (!message.trim()) return setError('Isi pesan wajib diisi.');
     setSending(true);
     try {
-      await sendWarnings({ fromId: user.id, toIds: selected, title: title.trim(), message: message.trim() });
+      await sendWarnings({ fromId: user.id, toIds: selected, title: title.trim(), message: message.trim(), actorId: user?.id, actorRole: user?.role });
       onSent?.();
       setTitle('');
       setMessage('');

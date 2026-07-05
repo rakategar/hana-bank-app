@@ -1,26 +1,29 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserPlus, LogOut, ShieldCheck } from 'lucide-react';
+import { UserPlus, LogOut, ShieldCheck, Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchUsersByRole, upsertUserProfile } from '../lib/db';
+import { fetchAllUsers, fetchSupervisors, upsertUserProfile } from '../lib/db';
+import { useUnsavedWarning } from '../hooks/useUnsavedWarning';
 import { ErrorBox, Spinner } from '../components/ui';
-import { ROLE_LABELS } from '../lib/utils';
+import { ROLE_LABELS, clsx } from '../lib/utils';
 import logo from '/hana-bank-logo.png';
 
 const ROLES = ['BM', 'FWSS', 'FA'];
 const DEMO_ID_RE = /^[a-z]+_\d+$/;
 
-// Role atasan untuk tiap role (top-down)
-const SUPERVISOR_ROLE = { BM: 'RH', FWSS: 'BM', FA: 'FWSS' };
+// Sections atasan yang ditampilkan per role.
+// required: wajib pilih ≥1; multi: bisa pilih lebih dari 1; single: pilih tepat 1 (select)
+const SUPERVISOR_SECTIONS = {
+  FA:   [{ role: 'FWSS', required: true, multi: true }, { role: 'BM', required: true, multi: true }, { role: 'RH', required: true, multi: false }],
+  FWSS: [{ role: 'BM',   required: true, multi: true }, { role: 'FA', required: true, multi: true }, { role: 'RH', required: true, multi: false }],
+  BM:   [{ role: 'FWSS', required: true, multi: true }, { role: 'FA', required: false, multi: true }, { role: 'RH', required: true, multi: false }],
+};
 
-const BRANCHES = [
-  'Regional Jakarta',
-  'Cabang Jakarta Pusat',
-  'Cabang Jakarta Selatan',
-  'Cabang Jakarta Barat',
-  'Cabang Jakarta Timur',
-  'Cabang Jakarta Utara',
-];
+
+// supSelections: { [role]: string[] }  — RH stored as single-item array too
+function initSelections() {
+  return { FA: [], FWSS: [], BM: [], RH: [] };
+}
 
 export default function Onboarding() {
   const { clerkIdentity, user: existingProfile, refreshProfile, logout, dashboardPath } = useAuth();
@@ -30,40 +33,70 @@ export default function Onboarding() {
   const [name, setName] = useState(existingProfile?.name || clerkIdentity?.fullName || '');
   const [role, setRole] = useState(existingProfile?.role || '');
   const [branch, setBranch] = useState(existingProfile?.branch || '');
-  const [supervisorId, setSupervisorId] = useState(existingProfile?.supervisor_id || '');
-  const [supervisors, setSupervisors] = useState([]);
-  const [supLoading, setSupLoading] = useState(false);
-  // Saat mode update, restore supervisorId awal jika masih valid setelah load
-  const initialSupId = useRef(existingProfile?.supervisor_id || '');
+  const [supSelections, setSupSelections] = useState(initSelections());
+  const [usersByRole, setUsersByRole] = useState({});
+  const [usersLoading, setUsersLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [touched, setTouched] = useState(false);
 
-  const supRole = SUPERVISOR_ROLE[role];
+  useUnsavedWarning(touched && !saving);
 
-  // Muat kandidat atasan saat role berubah
+  const sections = SUPERVISOR_SECTIONS[role] || [];
+
+  // Load all users and existing supervisor selections when role changes
   useEffect(() => {
-    setSupervisorId('');
-    setSupervisors([]);
-    if (!supRole) return;
-    setSupLoading(true);
+    setSupSelections(initSelections());
+    if (!role || role === 'RH') return;
+    setUsersLoading(true);
     (async () => {
       try {
-        const all = await fetchUsersByRole(supRole);
-        const filtered = all.filter((u) => !DEMO_ID_RE.test(u.id));
-        setSupervisors(filtered);
-        // Mode update: restore supervisorId awal jika masih terdaftar & valid
-        const init = initialSupId.current;
-        if (init && filtered.some((u) => u.id === init)) {
-          setSupervisorId(init);
-          initialSupId.current = '';
+        const [allUsers, existing] = await Promise.all([
+          fetchAllUsers(),
+          isUpdate && clerkIdentity?.id ? fetchSupervisors(clerkIdentity.id) : Promise.resolve([]),
+        ]);
+        const grouped = {};
+        allUsers
+          .filter((u) => !DEMO_ID_RE.test(u.id) && u.id !== clerkIdentity?.id)
+          .forEach((u) => {
+            if (!grouped[u.role]) grouped[u.role] = [];
+            grouped[u.role].push(u);
+          });
+        setUsersByRole(grouped);
+
+        // Pre-fill from existing supervisors if update mode
+        if (existing.length > 0) {
+          const byRole = initSelections();
+          existing.forEach((sup) => {
+            if (!byRole[sup.role]) byRole[sup.role] = [];
+            byRole[sup.role].push(sup.id);
+          });
+          setSupSelections(byRole);
         }
       } catch {
-        setSupervisors([]);
+        setUsersByRole({});
       } finally {
-        setSupLoading(false);
+        setUsersLoading(false);
       }
     })();
-  }, [supRole]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role]);
+
+  function toggleMulti(sectionRole, userId) {
+    setTouched(true);
+    setSupSelections((prev) => {
+      const cur = prev[sectionRole] || [];
+      return {
+        ...prev,
+        [sectionRole]: cur.includes(userId) ? cur.filter((id) => id !== userId) : [...cur, userId],
+      };
+    });
+  }
+
+  function setSingle(sectionRole, userId) {
+    setTouched(true);
+    setSupSelections((prev) => ({ ...prev, [sectionRole]: userId ? [userId] : [] }));
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -72,6 +105,17 @@ export default function Onboarding() {
     if (!role) return setError('Pilih role Anda.');
     if (!branch) return setError('Pilih cabang Anda.');
 
+    // Validasi setiap section
+    for (const sec of sections) {
+      const selected = supSelections[sec.role] || [];
+      if (sec.required && selected.length === 0) {
+        return setError(`Pilih minimal 1 ${sec.role} (${ROLE_LABELS[sec.role] || sec.role}).`);
+      }
+    }
+
+    // Flatten semua pilihan menjadi satu array supervisor IDs
+    const supervisorIds = sections.flatMap((sec) => supSelections[sec.role] || []);
+
     setSaving(true);
     try {
       await upsertUserProfile({
@@ -79,8 +123,9 @@ export default function Onboarding() {
         name: name.trim(),
         role,
         branch,
-        supervisorId: supervisorId || null,
+        supervisorIds,
       });
+      setTouched(false);
       await refreshProfile();
       navigate(dashboardPath(role), { replace: true });
     } catch (err) {
@@ -138,47 +183,89 @@ export default function Onboarding() {
             <input
               className="w-full px-3 py-2 text-sm"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => { setTouched(true); setName(e.target.value); }}
               placeholder="Nama sesuai identitas"
             />
           </div>
 
           <div>
             <label className="label">Role / Jabatan *</label>
-            <select className="w-full px-3 py-2 text-sm" value={role} onChange={(e) => setRole(e.target.value)}>
+            <select className="w-full px-3 py-2 text-sm" value={role} onChange={(e) => { setTouched(true); setRole(e.target.value); }}>
               <option value="">— Pilih role —</option>
               {ROLES.map((r) => (
-                <option key={r} value={r}>{r} — {ROLE_LABELS[r]}</option>
+                <option key={r} value={r}>{r}</option>
               ))}
             </select>
           </div>
 
           <div>
             <label className="label">Cabang / Unit *</label>
-            <select className="w-full px-3 py-2 text-sm" value={branch} onChange={(e) => setBranch(e.target.value)}>
-              <option value="">— Pilih cabang —</option>
-              {BRANCHES.map((b) => (
-                <option key={b} value={b}>{b}</option>
-              ))}
-            </select>
+            <input
+              className="w-full px-3 py-2 text-sm"
+              value={branch}
+              onChange={(e) => { setTouched(true); setBranch(e.target.value); }}
+              placeholder="mis. Cabang Jakarta Pusat"
+            />
           </div>
 
-          {supRole && (
-            <div>
-              <label className="label">Atasan ({ROLE_LABELS[supRole]})</label>
-              {supLoading ? (
-                <div className="flex items-center gap-2 text-sm text-text-muted py-2"><Spinner size={16} /> Memuat daftar {supRole}...</div>
-              ) : supervisors.length > 0 ? (
-                <select className="w-full px-3 py-2 text-sm" value={supervisorId} onChange={(e) => setSupervisorId(e.target.value)}>
-                  <option value="">— Pilih atasan —</option>
-                  {supervisors.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name} · {s.branch}</option>
-                  ))}
-                </select>
+          {role && sections.length > 0 && (
+            <div className="space-y-4">
+              {usersLoading ? (
+                <div className="flex items-center gap-2 text-sm text-text-muted py-2">
+                  <Spinner size={16} /> Memuat daftar pengguna...
+                </div>
               ) : (
-                <p className="text-xs text-text-muted bg-elevated border border-hana-border rounded-lg px-3 py-2">
-                  Belum ada {supRole} terdaftar — bisa dikaitkan nanti setelah atasan Anda mendaftar.
-                </p>
+                sections.map((sec) => {
+                  const candidates = (usersByRole[sec.role] || []).sort((a, b) => a.name.localeCompare(b.name));
+                  const selected = supSelections[sec.role] || [];
+                  return (
+                    <div key={sec.role}>
+                      <label className="label mb-1.5">
+                        {ROLE_LABELS[sec.role] || sec.role} ({sec.role})
+                        {sec.required ? <span className="text-score-1 ml-1">*</span> : <span className="text-text-muted ml-1 font-normal">(opsional)</span>}
+                      </label>
+                      {candidates.length === 0 ? (
+                        <p className="text-xs text-text-muted bg-elevated border border-hana-border rounded-lg px-3 py-2">
+                          Belum ada {sec.role} terdaftar — bisa dikaitkan nanti.
+                        </p>
+                      ) : sec.multi ? (
+                        <div className="flex flex-wrap gap-2">
+                          {candidates.map((u) => {
+                            const active = selected.includes(u.id);
+                            return (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => toggleMulti(sec.role, u.id)}
+                                className={clsx(
+                                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors',
+                                  active
+                                    ? 'bg-hana-teal-500 text-white border-hana-teal-500'
+                                    : 'bg-white text-text-secondary border-hana-border hover:border-hana-teal-400'
+                                )}
+                              >
+                                {active && <Check size={11} />}
+                                {u.name} · {u.branch}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        // Single select (RH)
+                        <select
+                          className="w-full px-3 py-2 text-sm"
+                          value={selected[0] || ''}
+                          onChange={(e) => setSingle(sec.role, e.target.value)}
+                        >
+                          <option value="">— Pilih {sec.role} —</option>
+                          {candidates.map((u) => (
+                            <option key={u.id} value={u.id}>{u.name} · {u.branch}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
           )}

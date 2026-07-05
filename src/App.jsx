@@ -3,8 +3,11 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { getRHSession } from './lib/rhSession';
 import { initializeRHCredentials } from './lib/db';
+import { IS_DEMO } from './lib/appMode';
 
 import Login from './pages/Login';
+import ClearCookies from './pages/ClearCookies';
+import DemoLogin from './pages/DemoLogin';
 import RHLogin from './pages/RHLogin';
 import Onboarding from './pages/Onboarding';
 import FADashboard from './pages/fa/Dashboard';
@@ -16,6 +19,7 @@ import DailyInput from './pages/DailyInput';
 import ScoreResult from './pages/ScoreResult';
 import FWSSSummary from './pages/fwss/Summary';
 import NotesArchive from './pages/fwss/NotesArchive';
+import BMNotesArchive from './pages/bm/NotesArchive';
 import BMSummary from './pages/bm/Summary';
 import RHSummary from './pages/rh/Summary';
 
@@ -76,7 +80,7 @@ export default function App() {
             ? needsOnboarding
               ? <Navigate to="/onboarding" replace />
               : <Navigate to={dashboardPath()} replace />
-            : <Login />
+            : IS_DEMO ? <DemoLogin /> : <Login />
         }
       />
 
@@ -101,8 +105,11 @@ export default function App() {
 
       <Route path="/summary/fwss" element={<ProtectedRoute role="FWSS"><FWSSSummary /></ProtectedRoute>} />
       <Route path="/notes-archive" element={<ProtectedRoute role="FWSS"><NotesArchive /></ProtectedRoute>} />
+      <Route path="/notes-archive/bm" element={<ProtectedRoute role="BM"><BMNotesArchive /></ProtectedRoute>} />
       <Route path="/summary/bm" element={<ProtectedRoute role="BM"><BMSummary /></ProtectedRoute>} />
       <Route path="/summary/rh" element={<RHProtectedRoute><RHSummary /></RHProtectedRoute>} />
+
+      <Route path="/cc" element={<ClearCookies />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

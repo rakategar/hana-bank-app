@@ -1,4 +1,6 @@
 import { supabase, STORAGE_BUCKET } from './supabase';
+import { genUUID } from './utils';
+import { logActivity } from './db';
 
 // Kompresi gambar client-side dengan canvas sebelum upload (target <= maxKB)
 export async function compressImage(file, maxKB = 500) {
@@ -44,7 +46,7 @@ export async function uploadActivityImage({ userId, date, timeSlot, file }) {
   const kind = detectKind(file);
   if (!kind) throw new Error('Format tidak didukung. Gunakan PNG, JPG, JPEG, atau PDF.');
 
-  const uuid = crypto.randomUUID();
+  const uuid = genUUID();
   const timeForPath = timeSlot.replace(':', '-'); // 07:30 → 07-30
 
   let body, contentType, ext;
@@ -80,6 +82,8 @@ export async function uploadActivityImage({ userId, date, timeSlot, file }) {
     public_url: signed?.signedUrl || null,
     file_size_kb: Math.round(body.size / 1024),
   });
+
+  logActivity({ userId, action: 'photo_uploaded', entityDate: date, metadata: { time_slot: timeSlot, kind } });
 
   return { path, url: signed?.signedUrl || null, kind };
 }
